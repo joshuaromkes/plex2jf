@@ -1,0 +1,24 @@
+# Plex2JF Configuration
+# Map users across Plex, Jellyfin, and Seerr
+
+user_mappings:
+  # Example mapping - replace with your actual users
+  # The plex_username should match the Plex account username
+  # The jellyfin_username should match the Jellyfin username
+  # The seerr_username should match the Seerr (Overseerr/Jellyseerr) username
+  
+  - plex_username: "example_user"
+    jellyfin_username: "example_user"
+    seerr_username: "example_user"
+  
+  # Add more mappings as needed for each user you want to sync
+  # - plex_username: "another_user"
+  #   jellyfin_username: "another_user"
+  #   seerr_username: "another_user"
+
+# Note: You can also specify user IDs directly if you know them:
+# - plex_username: "user"
+#   jellyfin_username: "user"
+#   jellyfin_user_id: "abc123"
+#   seerr_username: "user"
+#   seerr_user_id: 1
