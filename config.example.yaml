@@ -1,0 +1,44 @@
+# Plex2JF Configuration Example
+# Copy this file to config.yaml and fill in your values
+
+# Server Configurations
+plex:
+  url: "https://plex.tv"
+  token: "YOUR_ADMIN_PLEX_TOKEN"  # Admin token - can access managed users' watchlists
+  
+jellyfin:
+  url: "http://jellyfin:8096"
+  api_key: "YOUR_JELLYFIN_API_KEY"
+  
+seerr:
+  url: "http://seerr:5055"
+  api_key: "YOUR_SEERR_API_KEY"
+
+# User Mappings (no individual Plex tokens needed!)
+user_mappings:
+  - plex_username: "john_plex"
+    plex_user_id: "12345678"  # Plex user ID (optional, for faster lookups)
+    jellyfin_user_id: "abc123"
+    seerr_user_id: "1"
+    
+  - plex_username: "jane_plex"
+    plex_user_id: "87654321"
+    jellyfin_user_id: "def456"
+    seerr_user_id: "2"
+
+# Sync Settings
+sync:
+  polling_interval: 300  # seconds (5 minutes)
+  enable_webhooks: true
+  webhook_port: 8000
+  
+  # Feature flags
+  features:
+    seerr_to_jellyfin: true
+    plex_watchlist_to_seerr: true
+    plex_watchlist_to_jellyfin: true
+
+# Logging
+logging:
+  level: "INFO"
+  file: "/data/plex2jf.log"
