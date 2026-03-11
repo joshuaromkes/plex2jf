@@ -8,15 +8,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
+      - ./config:/app/config/
       - ./data:/data
     environment:
       - TZ=America/New_York
       - PLEX2JF_LOG_LEVEL=INFO
       - PLEX2JF_DB_PATH=/data/plex2jf.db
-    networks:
-      - media-network
-
-networks:
-  media-network:
-    external: true  # Assumes existing network with Jellyfin/Seerr

@@ -1,4 +1,5 @@
 """Application settings management."""
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -13,7 +14,7 @@ from src.config.models import Config
 class Settings(BaseSettings):
     """Application settings."""
     # Config file path
-    config_path: str = "/app/config.yaml"
+    config_path: str = "/app/config/config.yaml"
     
     # Database
     db_path: str = "/data/plex2jf.db"
@@ -53,8 +54,21 @@ def load_config(config_path: Optional[str] = None) -> Config:
         config_path = get_settings().config_path
     
     config_file = Path(config_path)
+    
+    # Create config from example if it doesn't exist
     if not config_file.exists():
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+        example_path = Path("/app/config.example.yaml")
+        if example_path.exists():
+            logger = logging.getLogger(__name__)
+            logger.info(f"Creating config file from example: {config_path}")
+            # Copy example to config location
+            import shutil
+            shutil.copy(example_path, config_file)
+        else:
+            raise FileNotFoundError(
+                f"Configuration file not found: {config_path}\n"
+                f"Please create a config.yaml file based on config.example.yaml"
+            )
     
     with open(config_file, "r") as f:
         data = yaml.safe_load(f)

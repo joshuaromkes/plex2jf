@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application
 COPY src/ ./src/
+COPY config.example.yaml /app/config.example.yaml
 
 # Create data directory
 RUN mkdir -p /data

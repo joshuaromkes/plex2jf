@@ -40,6 +40,7 @@ ENV/
 # Configuration (contains secrets)
 config.yaml
 config.yml
+/config/
 
 # Database
 *.db

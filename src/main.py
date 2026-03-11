@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.config.settings import load_config, get_settings
@@ -88,12 +89,34 @@ def get_sync_engine(db: Session = Depends(get_db)) -> SyncEngine:
     return SyncEngine(db, plex_client, jellyfin_client, seerr_client)
 
 
+@app.get("/")
+async def root() -> dict:
+    """Root endpoint showing API information."""
+    return {
+        "service": "plex2jf",
+        "version": "1.0.0",
+        "description": "Sync media requests and favorites between Plex, Jellyfin, and Seerr",
+        "endpoints": {
+            "health": "/health",
+            "stats": "/stats",
+            "webhooks": {
+                "seerr": "/webhooks/seerr",
+                "health": "/webhooks/health"
+            },
+            "sync": {
+                "plex-watchlist": "/sync/plex-watchlist",
+                "retry-pending": "/sync/retry-pending"
+            }
+        }
+    }
+
+
 @app.get("/health")
 async def health_check(db: Session = Depends(get_db)) -> dict:
     """Health check endpoint."""
     try:
         # Check database
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db_status = "healthy"
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
