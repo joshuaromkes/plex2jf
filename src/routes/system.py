@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
@@ -43,7 +44,7 @@ async def health_check(db: Session = Depends(get_db)):
     """Get system health status."""
     # Check database connectivity
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         database_status = "healthy"
     except Exception as e:
         logger.error(f"Database health check failed: {e}")

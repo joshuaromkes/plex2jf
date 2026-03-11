@@ -136,15 +136,6 @@ class JellyfinClient:
         logger.error(f"Failed to unfavorite item {item_id} for user {user_id}")
         return False
     
-    def get_users(self) -> List[Dict[str, Any]]:
-        """Get list of Jellyfin users.
-        
-        Returns:
-            List of user dictionaries
-        """
-        result = self._make_request('GET', '/Users')
-        return result if result else []
-    
     def health_check(self) -> bool:
         """Check if Jellyfin connection is healthy."""
         result = self._make_request('GET', '/System/Info')

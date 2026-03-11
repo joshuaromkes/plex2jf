@@ -104,17 +104,6 @@ class SeerrClient:
         """
         return self._make_request('GET', f'/request/{request_id}')
     
-    def get_users(self) -> list:
-        """Get list of Seerr users.
-        
-        Returns:
-            List of user dictionaries
-        """
-        result = self._make_request('GET', '/user')
-        if result and 'results' in result:
-            return result['results']
-        return []
-    
     def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """Get user by username.
         
