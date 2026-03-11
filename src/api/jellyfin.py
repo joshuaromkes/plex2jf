@@ -75,6 +75,23 @@ class JellyfinClient:
         logger.debug(f"Item not found in Jellyfin (TMDB: {tmdb_id})")
         return None
     
+    def test_connection(self) -> None:
+        """Test connection to Jellyfin. Raises exception if failed."""
+        result = self._make_request('GET', '/System/Info')
+        if result is None:
+            raise Exception("Failed to connect to Jellyfin")
+
+    def get_users(self) -> List[Dict[str, Any]]:
+        """Get all Jellyfin users.
+        
+        Returns:
+            List of user dictionaries
+        """
+        result = self._make_request('GET', '/Users')
+        if result is None:
+            return []
+        return result
+
     def favorite_item(self, user_id: str, item_id: str) -> bool:
         """Mark item as favorite for user.
         

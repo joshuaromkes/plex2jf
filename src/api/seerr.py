@@ -1,6 +1,6 @@
 """Seerr API client."""
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import requests
 
@@ -75,6 +75,24 @@ class SeerrClient:
         logger.error(f"Failed to create request for {media_type} ID {media_id}")
         return None
     
+    def test_connection(self) -> None:
+        """Test connection to Seerr. Raises exception if failed."""
+        result = self._make_request('GET', '/auth/me')
+        if result is None:
+            raise Exception("Failed to connect to Seerr")
+
+    def get_users(self) -> List[Dict[str, Any]]:
+        """Get all Seerr users.
+        
+        Returns:
+            List of user dictionaries
+        """
+        result = self._make_request('GET', '/user')
+        if result is None:
+            return []
+        # Seerr returns paginated results
+        return result.get('results', [])
+
     def get_request(self, request_id: int) -> Optional[Dict[str, Any]]:
         """Get request details.
         

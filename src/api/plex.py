@@ -143,3 +143,44 @@ class PlexClient:
         except Exception as e:
             logger.error(f"Plex health check failed: {e}")
             return False
+
+    def test_connection(self) -> None:
+        """Test connection to Plex. Raises exception if failed."""
+        if self._account is None:
+            self.connect()
+        # Verify connection by accessing account info
+        _ = self._account.username
+
+    def get_users(self) -> List[Dict[str, Any]]:
+        """Get all Plex users including managed users.
+        
+        Returns:
+            List of user dictionaries with 'id', 'username', 'email' keys
+        """
+        if self._account is None:
+            self.connect()
+        
+        users = []
+        
+        # Add the main account owner
+        try:
+            users.append({
+                'id': self._account.id,
+                'username': self._account.username,
+                'email': self._account.email if hasattr(self._account, 'email') else None,
+            })
+        except Exception as e:
+            logger.warning(f"Failed to get account owner info: {e}")
+        
+        # Add managed/home users
+        for user in self._account.users():
+            try:
+                users.append({
+                    'id': user.id,
+                    'username': user.title,
+                    'email': user.email if hasattr(user, 'email') else None,
+                })
+            except Exception as e:
+                logger.warning(f"Failed to get user info for {user}: {e}")
+        
+        return users

@@ -1,9 +1,12 @@
 """Main FastAPI application."""
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -18,7 +21,19 @@ from src.services.user_mapper import UserMapper
 from src.webhooks.routes import router as webhooks_router
 from src.utils.logging_config import setup_logging
 
+# Import new routes
+from src.routes import (
+    servers_router,
+    users_router,
+    settings_router,
+    dashboard_router,
+    system_router,
+)
+
 logger = logging.getLogger(__name__)
+
+# Path to frontend build directory
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
 
 
 @asynccontextmanager
@@ -67,6 +82,11 @@ app = FastAPI(
 
 # Include routers
 app.include_router(webhooks_router)
+app.include_router(servers_router)
+app.include_router(users_router)
+app.include_router(settings_router)
+app.include_router(dashboard_router)
+app.include_router(system_router)
 
 
 def get_sync_engine(db: Session = Depends(get_db)) -> SyncEngine:
@@ -89,21 +109,25 @@ def get_sync_engine(db: Session = Depends(get_db)) -> SyncEngine:
     return SyncEngine(db, plex_client, jellyfin_client, seerr_client)
 
 
-@app.get("/")
-async def root() -> dict:
-    """Root endpoint showing API information."""
+@app.get("/api")
+async def api_root() -> dict:
+    """API root endpoint showing available endpoints."""
     return {
         "service": "plex2jf",
         "version": "1.0.0",
         "description": "Sync media requests and favorites between Plex, Jellyfin, and Seerr",
-        "endpoints": {
-            "health": "/health",
-            "stats": "/stats",
+        "api_endpoints": {
+            "servers": "/api/servers",
+            "users": "/api/users",
+            "settings": "/api/settings",
+            "dashboard": "/api/dashboard",
+            "system": "/api/system",
+            "health": "/api/system/health",
             "webhooks": {
                 "seerr": "/webhooks/seerr",
                 "health": "/webhooks/health"
             },
-            "sync": {
+            "legacy_sync": {
                 "plex-watchlist": "/sync/plex-watchlist",
                 "retry-pending": "/sync/retry-pending"
             }
@@ -163,6 +187,41 @@ async def retry_pending(
     except Exception as e:
         logger.error(f"Error retrying pending items: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Serve frontend static files (if built)
+if os.path.exists(FRONTEND_DIR):
+    # Mount static files
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")
+    
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve frontend for all non-API routes."""
+        # Don't serve frontend for API routes
+        if full_path.startswith("api/") or full_path.startswith("webhooks/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        # Serve index.html for all routes (React Router handles routing)
+        index_path = os.path.join(FRONTEND_DIR, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        else:
+            raise HTTPException(status_code=404, detail="Frontend not built")
+else:
+    @app.get("/")
+    async def root() -> dict:
+        """Root endpoint when frontend is not built."""
+        return {
+            "service": "plex2jf",
+            "version": "1.0.0",
+            "description": "Sync media requests and favorites between Plex, Jellyfin, and Seerr",
+            "frontend": "Not built - API only mode",
+            "endpoints": {
+                "api": "/api",
+                "health": "/health",
+                "docs": "/docs",
+            }
+        }
 
 
 if __name__ == "__main__":
