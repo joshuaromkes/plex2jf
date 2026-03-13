@@ -24,12 +24,14 @@ class SyncEngine:
         plex_client: PlexClient,
         jellyfin_client: JellyfinClient,
         seerr_client: SeerrClient,
+        config=None,
     ):
         self.db = db
         self.plex = plex_client
         self.jellyfin = jellyfin_client
         self.seerr = seerr_client
         self.user_mapper = UserMapper(db)
+        self.config = config
     
     def sync_seerr_request_to_jellyfin(
         self,
@@ -154,10 +156,17 @@ class SyncEngine:
             True if successful, False otherwise
         """
         # Get user mapping
+        logger.info(f"Looking up user mapping for Plex user: {plex_username}")
         user_mapping = self.user_mapper.get_mapping_by_plex_username(plex_username)
         if not user_mapping:
             logger.warning(f"No user mapping found for Plex user {plex_username}")
+            # Log all available mappings for debugging
+            all_mappings = self.user_mapper.get_all_mappings()
+            available = [m.plex_username for m in all_mappings if m.is_active]
+            logger.warning(f"Available active mappings: {available}")
             return False
+        
+        logger.info(f"Found user mapping: Plex={user_mapping.plex_username}, Seerr ID={user_mapping.seerr_user_id}")
         
         # Check if already synced
         existing = (
@@ -173,9 +182,49 @@ class SyncEngine:
         if existing and existing.synced_to_seerr:
             logger.debug(f"Already synced to Seerr: {title} (TMDB: {tmdb_id})")
             return True
+
+        # Guard against duplicate Seerr requests: if the request already exists
+        # in Seerr, mark it synced locally and skip creating a new one.
+        existing_request = None
+        try:
+            existing_request = self.seerr.find_existing_request(
+                media_type='tv' if media_type == 'tv' else 'movie',
+                media_id=int(tmdb_id),
+                user_id=int(user_mapping.seerr_user_id),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to check existing Seerr requests for {title}: {e}")
+
+        if existing_request:
+            existing_request_id = str(existing_request.get('id')) if existing_request.get('id') is not None else None
+
+            if existing:
+                existing.synced_to_seerr = True
+                existing.seerr_request_id = existing_request_id
+                existing.last_synced_at = datetime.utcnow()
+                existing.last_error = None
+            else:
+                self.db.add(
+                    SyncState(
+                        user_mapping_id=user_mapping.id,
+                        media_type=media_type,
+                        external_id=tmdb_id,
+                        title=title,
+                        source='plex_watchlist',
+                        synced_to_seerr=True,
+                        seerr_request_id=existing_request_id,
+                        last_synced_at=datetime.utcnow(),
+                    )
+                )
+
+            self.db.commit()
+            logger.info(f"Seerr request already exists for {title}; marked as synced")
+            return True
         
         # Create request in Seerr
         seerr_media_type = 'movie' if media_type == 'movie' else 'tv'
+        logger.info(f"Creating Seerr request: {title} ({seerr_media_type}, TMDB:{tmdb_id}) for user {user_mapping.seerr_user_id}")
+        
         try:
             result = self.seerr.create_request(
                 media_type=seerr_media_type,
@@ -183,7 +232,7 @@ class SyncEngine:
                 user_id=int(user_mapping.seerr_user_id),
             )
         except Exception as e:
-            logger.error(f"Failed to create Seerr request: {e}")
+            logger.error(f"Failed to create Seerr request: {e}", exc_info=True)
             result = None
         
         if result:
@@ -194,6 +243,7 @@ class SyncEngine:
                 existing.synced_to_seerr = True
                 existing.seerr_request_id = request_id
                 existing.last_synced_at = datetime.utcnow()
+                existing.last_error = None
             else:
                 new_state = SyncState(
                     user_mapping_id=user_mapping.id,

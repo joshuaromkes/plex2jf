@@ -1,13 +1,13 @@
 """Polling service for Plex watchlists."""
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from sqlalchemy.orm import Session
 
 from src.api.plex import PlexClient
 from src.services.sync_engine import SyncEngine
-from src.database.models import PollingState
+from src.database.models import PollingState, UserMapping
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,15 @@ class PollerService:
         self.plex = plex_client
         self.sync_engine = sync_engine
     
+    def _get_mapped_usernames(self) -> List[str]:
+        """Get list of mapped Plex usernames.
+        
+        Returns:
+            List of Plex usernames that have mappings
+        """
+        mappings = self.db.query(UserMapping).filter(UserMapping.is_active == True).all()
+        return [m.plex_username for m in mappings]
+    
     def poll_plex_watchlists(self) -> int:
         """Poll Plex watchlists and sync items.
         
@@ -34,14 +43,54 @@ class PollerService:
         logger.info("Starting Plex watchlist poll...")
         
         try:
-            # Get watchlist items for all users
-            watchlist_items = self.plex.get_watchlist()
+            # Get mapped usernames to filter by
+            mapped_usernames = self._get_mapped_usernames()
+            logger.info(f"Found {len(mapped_usernames)} mapped users: {mapped_usernames}")
+            
+            # Get watchlist items for mapped users only
+            watchlist_items = self.plex.get_watchlist(mapped_usernames=mapped_usernames)
             
             synced_count = 0
+            
+            logger.info(f"Processing {len(watchlist_items)} watchlist items for sync")
+
+            # Diagnostic logging: capture whether this SyncEngine instance has config/feature flags
+            has_config_attr = hasattr(self.sync_engine, 'config')
+            runtime_config = getattr(self.sync_engine, 'config', None)
+            sync_config = getattr(runtime_config, 'sync', None) if runtime_config else None
+            features_config = getattr(sync_config, 'features', None) if sync_config else None
+
+            configured_seerr_flag = None
+            configured_jellyfin_flag = None
+            if features_config:
+                configured_seerr_flag = getattr(features_config, 'plex_watchlist_to_seerr', None)
+                configured_jellyfin_flag = getattr(features_config, 'plex_watchlist_to_jellyfin', None)
+
+            logger.info(
+                "Poller runtime config visibility: has_config_attr=%s config_present=%s sync_present=%s features_present=%s configured_seerr_flag=%s configured_jellyfin_flag=%s",
+                has_config_attr,
+                runtime_config is not None,
+                sync_config is not None,
+                features_config is not None,
+                configured_seerr_flag,
+                configured_jellyfin_flag,
+            )
+
+            # Effective feature flags
+            seerr_enabled = bool(configured_seerr_flag) if configured_seerr_flag is not None else False
+            jellyfin_enabled = bool(configured_jellyfin_flag) if configured_jellyfin_flag is not None else False
+
+            logger.info(
+                "Effective poller feature flags: seerr_enabled=%s jellyfin_enabled=%s",
+                seerr_enabled,
+                jellyfin_enabled,
+            )
             
             for item in watchlist_items:
                 # Determine media type
                 media_type = 'movie' if item.type == 'movie' else 'tv'
+                
+                logger.info(f"Processing item: {item.title} ({media_type}) for user {item.username}, TMDB: {item.tmdb_id}")
                 
                 # Skip if no TMDB ID
                 if not item.tmdb_id:
@@ -49,7 +98,8 @@ class PollerService:
                     continue
                 
                 # Sync to Seerr if enabled
-                if hasattr(self.sync_engine, 'config') and self.sync_engine.config.sync.features.plex_watchlist_to_seerr:
+                if seerr_enabled:
+                    logger.info(f"Attempting Seerr sync for {item.title}")
                     success = self.sync_engine.sync_plex_watchlist_to_seerr(
                         item.username,
                         item.tmdb_id,
@@ -58,9 +108,13 @@ class PollerService:
                     )
                     if success:
                         synced_count += 1
-                
-                # Sync to Jellyfin if enabled
-                if hasattr(self.sync_engine, 'config') and self.sync_engine.config.sync.features.plex_watchlist_to_jellyfin:
+                        logger.info(f"Successfully synced {item.title} to Seerr")
+                    else:
+                        logger.warning(f"Failed to sync {item.title} to Seerr")
+                else:
+                    logger.warning(f"Seerr sync not enabled, skipping {item.title}")
+
+                if jellyfin_enabled:
                     success = self.sync_engine.sync_plex_watchlist_to_jellyfin(
                         item.username,
                         item.tmdb_id,
