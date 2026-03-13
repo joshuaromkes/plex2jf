@@ -36,8 +36,8 @@ COPY config.example.yaml /app/config.example.yaml
 # Copy built frontend from stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Create data directory
-RUN mkdir -p /data
+# Create data and config directories
+RUN mkdir -p /data /app/config
 
 # Expose webhook port
 EXPOSE 8000

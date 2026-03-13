@@ -52,17 +52,27 @@ class UserMapper:
     def get_mapping_by_plex_username(self, plex_username: str) -> Optional[UserMappingModel]:
         """Get user mapping by Plex username.
         
+        Uses case-insensitive and whitespace-tolerant matching since Plex
+        usernames from GraphQL may differ from stored usernames.
+        
         Args:
             plex_username: Plex username
             
         Returns:
             User mapping if found, None otherwise
         """
-        return (
-            self.db.query(UserMappingModel)
-            .filter(UserMappingModel.plex_username == plex_username)
-            .first()
-        )
+        # Normalize the search username
+        normalized_search = plex_username.lower().replace(' ', '')
+        
+        # Get all active mappings and check normalized match
+        all_mappings = self.db.query(UserMappingModel).filter(UserMappingModel.is_active == True).all()
+        
+        for mapping in all_mappings:
+            normalized_stored = mapping.plex_username.lower().replace(' ', '')
+            if normalized_stored == normalized_search:
+                return mapping
+        
+        return None
     
     def get_mapping_by_seerr_user_id(self, seerr_user_id: str) -> Optional[UserMappingModel]:
         """Get user mapping by Seerr user ID.

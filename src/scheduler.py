@@ -41,7 +41,7 @@ def run_polling_job():
             )
             
             # Create sync engine
-            sync_engine = SyncEngine(db, plex_client, jellyfin_client, seerr_client)
+            sync_engine = SyncEngine(db, plex_client, jellyfin_client, seerr_client, config)
             
             # Create poller
             poller = PollerService(db, plex_client, sync_engine)

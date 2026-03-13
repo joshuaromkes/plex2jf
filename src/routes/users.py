@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -12,9 +13,37 @@ from src.database.models import UserMapping, ExternalUser, ServerConfig
 from src.api.plex import PlexClient
 from src.api.jellyfin import JellyfinClient
 from src.api.seerr import SeerrClient
+from src.utils.response import success_response, error_response
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/users", tags=["users"])
+
+
+def external_user_to_dict(user: ExternalUser) -> dict:
+    """Convert ExternalUser model to dictionary for JSON serialization."""
+    return {
+        "id": user.id,
+        "service_type": user.service_type,
+        "external_id": user.external_id,
+        "username": user.username,
+        "email": user.email,
+        "last_synced_at": user.last_synced_at.isoformat() if user.last_synced_at else None,
+    }
+
+
+def user_mapping_to_dict(mapping: UserMapping) -> dict:
+    """Convert UserMapping model to dictionary for JSON serialization."""
+    return {
+        "id": mapping.id,
+        "plex_username": mapping.plex_username,
+        "plex_user_id": mapping.plex_user_id,
+        "jellyfin_user_id": mapping.jellyfin_user_id,
+        "seerr_user_id": mapping.seerr_user_id,
+        "is_active": mapping.is_active,
+        "notes": mapping.notes,
+        "created_at": mapping.created_at.isoformat() if mapping.created_at else None,
+        "updated_at": mapping.updated_at.isoformat() if mapping.updated_at else None,
+    }
 
 
 class UserMappingCreate(BaseModel):
@@ -73,14 +102,14 @@ class ExternalUserList(BaseModel):
     seerr: List[ExternalUserResponse]
 
 
-@router.get("/mappings", response_model=List[UserMappingResponse])
+@router.get("/mappings")
 async def list_user_mappings(db: Session = Depends(get_db)):
     """Get all user mappings."""
     mappings = db.query(UserMapping).all()
-    return mappings
+    return JSONResponse(content=success_response([user_mapping_to_dict(m) for m in mappings]))
 
 
-@router.post("/mappings", response_model=UserMappingResponse)
+@router.post("/mappings")
 async def create_user_mapping(mapping: UserMappingCreate, db: Session = Depends(get_db)):
     """Create a new user mapping."""
     # Check if mapping already exists for this plex username
@@ -89,9 +118,9 @@ async def create_user_mapping(mapping: UserMappingCreate, db: Session = Depends(
     ).first()
     
     if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"A mapping for Plex user '{mapping.plex_username}' already exists"
+        return JSONResponse(
+            status_code=200,
+            content=error_response(f"A mapping for Plex user '{mapping.plex_username}' already exists", code="duplicate")
         )
     
     new_mapping = UserMapping(**mapping.model_dump())
@@ -100,10 +129,10 @@ async def create_user_mapping(mapping: UserMappingCreate, db: Session = Depends(
     db.refresh(new_mapping)
     
     logger.info(f"Created user mapping for {mapping.plex_username}")
-    return new_mapping
+    return JSONResponse(content=success_response(user_mapping_to_dict(new_mapping), message="User mapping created"))
 
 
-@router.put("/mappings/{mapping_id}", response_model=UserMappingResponse)
+@router.put("/mappings/{mapping_id}")
 async def update_user_mapping(
     mapping_id: int,
     mapping: UserMappingUpdate,
@@ -112,7 +141,10 @@ async def update_user_mapping(
     """Update a user mapping."""
     existing = db.query(UserMapping).filter(UserMapping.id == mapping_id).first()
     if not existing:
-        raise HTTPException(status_code=404, detail="User mapping not found")
+        return JSONResponse(
+            status_code=200,
+            content=error_response("User mapping not found", code="not_found")
+        )
     
     # Update only provided fields
     update_data = mapping.model_dump(exclude_unset=True)
@@ -124,7 +156,7 @@ async def update_user_mapping(
     db.refresh(existing)
     
     logger.info(f"Updated user mapping for {existing.plex_username}")
-    return existing
+    return JSONResponse(content=success_response(user_mapping_to_dict(existing), message="User mapping updated"))
 
 
 @router.delete("/mappings/{mapping_id}")
@@ -132,22 +164,25 @@ async def delete_user_mapping(mapping_id: int, db: Session = Depends(get_db)):
     """Delete a user mapping."""
     mapping = db.query(UserMapping).filter(UserMapping.id == mapping_id).first()
     if not mapping:
-        raise HTTPException(status_code=404, detail="User mapping not found")
+        return JSONResponse(
+            status_code=200,
+            content=error_response("User mapping not found", code="not_found")
+        )
     
     db.delete(mapping)
     db.commit()
     
     logger.info(f"Deleted user mapping for {mapping.plex_username}")
-    return {"success": True, "message": "User mapping deleted successfully"}
+    return JSONResponse(content=success_response(message="User mapping deleted successfully"))
 
 
-@router.get("/plex", response_model=List[ExternalUserResponse])
+@router.get("/plex")
 async def get_plex_users(db: Session = Depends(get_db)):
     """Fetch users from Plex API."""
     # First try to get from cache
     cached = db.query(ExternalUser).filter(ExternalUser.service_type == "plex").all()
     if cached:
-        return cached
+        return JSONResponse(content=success_response([external_user_to_dict(u) for u in cached]))
     
     # Try to fetch from Plex if server is configured
     server = db.query(ServerConfig).filter(
@@ -156,7 +191,8 @@ async def get_plex_users(db: Session = Depends(get_db)):
     ).first()
     
     if not server:
-        raise HTTPException(status_code=400, detail="No Plex server configured")
+        # Return empty array instead of error - no server is not an error condition
+        return JSONResponse(content=success_response([], message="No Plex server configured"))
     
     try:
         client = PlexClient(token=server.token, url=server.url)
@@ -175,20 +211,22 @@ async def get_plex_users(db: Session = Depends(get_db)):
         db.commit()
         
         # Return cached users
-        return db.query(ExternalUser).filter(ExternalUser.service_type == "plex").all()
+        cached = db.query(ExternalUser).filter(ExternalUser.service_type == "plex").all()
+        return JSONResponse(content=success_response([external_user_to_dict(u) for u in cached]))
         
     except Exception as e:
         logger.error(f"Failed to fetch Plex users: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch Plex users: {str(e)}")
+        # Return empty array on error instead of error response
+        return JSONResponse(content=success_response([], message=f"Failed to fetch Plex users: {str(e)}"))
 
 
-@router.get("/jellyfin", response_model=List[ExternalUserResponse])
+@router.get("/jellyfin")
 async def get_jellyfin_users(db: Session = Depends(get_db)):
     """Fetch users from Jellyfin API."""
     # First try to get from cache
     cached = db.query(ExternalUser).filter(ExternalUser.service_type == "jellyfin").all()
     if cached:
-        return cached
+        return JSONResponse(content=success_response([external_user_to_dict(u) for u in cached]))
     
     # Try to fetch from Jellyfin if server is configured
     server = db.query(ServerConfig).filter(
@@ -197,7 +235,8 @@ async def get_jellyfin_users(db: Session = Depends(get_db)):
     ).first()
     
     if not server:
-        raise HTTPException(status_code=400, detail="No Jellyfin server configured")
+        # Return empty array instead of error - no server is not an error condition
+        return JSONResponse(content=success_response([], message="No Jellyfin server configured"))
     
     try:
         client = JellyfinClient(url=server.url, api_key=server.api_key)
@@ -216,20 +255,22 @@ async def get_jellyfin_users(db: Session = Depends(get_db)):
         db.commit()
         
         # Return cached users
-        return db.query(ExternalUser).filter(ExternalUser.service_type == "jellyfin").all()
+        cached = db.query(ExternalUser).filter(ExternalUser.service_type == "jellyfin").all()
+        return JSONResponse(content=success_response([external_user_to_dict(u) for u in cached]))
         
     except Exception as e:
         logger.error(f"Failed to fetch Jellyfin users: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch Jellyfin users: {str(e)}")
+        # Return empty array on error instead of error response
+        return JSONResponse(content=success_response([], message=f"Failed to fetch Jellyfin users: {str(e)}"))
 
 
-@router.get("/seerr", response_model=List[ExternalUserResponse])
+@router.get("/seerr")
 async def get_seerr_users(db: Session = Depends(get_db)):
     """Fetch users from Seerr API."""
     # First try to get from cache
     cached = db.query(ExternalUser).filter(ExternalUser.service_type == "seerr").all()
     if cached:
-        return cached
+        return JSONResponse(content=success_response([external_user_to_dict(u) for u in cached]))
     
     # Try to fetch from Seerr if server is configured
     server = db.query(ServerConfig).filter(
@@ -238,7 +279,8 @@ async def get_seerr_users(db: Session = Depends(get_db)):
     ).first()
     
     if not server:
-        raise HTTPException(status_code=400, detail="No Seerr server configured")
+        # Return empty array instead of error - no server is not an error condition
+        return JSONResponse(content=success_response([], message="No Seerr server configured"))
     
     try:
         client = SeerrClient(url=server.url, api_key=server.api_key)
@@ -257,11 +299,13 @@ async def get_seerr_users(db: Session = Depends(get_db)):
         db.commit()
         
         # Return cached users
-        return db.query(ExternalUser).filter(ExternalUser.service_type == "seerr").all()
+        cached = db.query(ExternalUser).filter(ExternalUser.service_type == "seerr").all()
+        return JSONResponse(content=success_response([external_user_to_dict(u) for u in cached]))
         
     except Exception as e:
         logger.error(f"Failed to fetch Seerr users: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch Seerr users: {str(e)}")
+        # Return empty array on error instead of error response
+        return JSONResponse(content=success_response([], message=f"Failed to fetch Seerr users: {str(e)}"))
 
 
 @router.post("/sync")

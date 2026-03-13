@@ -20,8 +20,8 @@ export function Servers() {
   const [testingId, setTestingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<ServerFormData>({
     service_type: 'plex',
-    name: '',
-    url: '',
+    name: 'My Plex Server',
+    url: 'http://localhost:32400',
     api_key: '',
     token: '',
   });
@@ -69,20 +69,33 @@ export function Servers() {
     e.preventDefault();
     
     try {
+      // Auto-generate name if not provided
+      const serverName = formData.name || `${formData.service_type.charAt(0).toUpperCase() + formData.service_type.slice(1)} Server (${formData.url})`;
+      
       const data: ServerConfigCreate = {
         service_type: formData.service_type,
-        name: formData.name,
+        name: serverName,
         url: formData.url,
-        ...(formData.service_type === 'plex' 
-          ? { token: formData.token } 
+        ...(formData.service_type === 'plex'
+          ? { token: formData.token }
           : { api_key: formData.api_key }
         ),
       };
 
+      let result;
       if (editingServer) {
-        await serversApi.update(editingServer.id, data);
+        result = await serversApi.update(editingServer.id, data);
       } else {
-        await serversApi.create(data);
+        result = await serversApi.create(data);
+      }
+      
+      // Check if we got a response with success: false, which means there was a handled error
+      if (result && typeof result === 'object' && 'success' in result && result.success === false) {
+        // Properly type the error response to avoid TypeScript errors
+        const errorResponse = result as { success: false, error?: { message?: string } };
+        console.error('Server operation failed:', errorResponse.error?.message);
+        alert(errorResponse.error?.message || 'Failed to save server. Please check your inputs.');
+        return;
       }
       
       setShowModal(false);
@@ -91,17 +104,43 @@ export function Servers() {
       await loadServers();
     } catch (error) {
       console.error('Failed to save server:', error);
-      alert('Failed to save server. Please check your inputs.');
+      alert('Failed to save server. Check your inputs and try again.');
     }
   };
 
   const resetForm = () => {
+    // Set proper defaults based on current service type
+    const serviceType = formData.service_type || 'plex';
+    
+    const defaults: Record<'plex' | 'jellyfin' | 'seerr', {
+      name: string;
+      url: string;
+      token: string;
+      api_key: string;
+    }> = {
+      plex: {
+        name: 'My Plex Server',
+        url: 'http://localhost:32400',
+        token: '',
+        api_key: '',
+      },
+      jellyfin: {
+        name: 'My Jellyfin Server',
+        url: 'http://localhost:8096',
+        token: '',
+        api_key: '',
+      },
+      seerr: {
+        name: 'My Seerr Server',
+        url: 'http://localhost:5055',
+        token: '',
+        api_key: '',
+      }
+    };
+    
     setFormData({
-      service_type: 'plex',
-      name: '',
-      url: '',
-      api_key: '',
-      token: '',
+      service_type: serviceType as 'plex' | 'jellyfin' | 'seerr',
+      ...defaults[serviceType as 'plex' | 'jellyfin' | 'seerr']
     });
   };
 
@@ -242,7 +281,41 @@ export function Servers() {
                 <label className="block text-text-secondary text-sm mb-1">Service Type</label>
                 <select
                   value={formData.service_type}
-                  onChange={(e) => setFormData({ ...formData, service_type: e.target.value as 'plex' | 'jellyfin' | 'seerr' })}
+                  onChange={(e) => {
+                    const newType = e.target.value as 'plex' | 'jellyfin' | 'seerr';
+                    
+                    // Set proper defaults for the selected service
+                    const defaults: Record<'plex' | 'jellyfin' | 'seerr', {
+                      name: string;
+                      url: string;
+                      token: string;
+                      api_key: string;
+                    }> = {
+                      plex: {
+                        name: 'My Plex Server',
+                        url: 'http://localhost:32400',
+                        token: '',
+                        api_key: '',
+                      },
+                      jellyfin: {
+                        name: 'My Jellyfin Server',
+                        url: 'http://localhost:8096',
+                        token: '',
+                        api_key: '',
+                      },
+                      seerr: {
+                        name: 'My Seerr Server',
+                        url: 'http://localhost:5055',
+                        token: '',
+                        api_key: '',
+                      }
+                    };
+                    
+                    setFormData({
+                      service_type: newType,
+                      ...defaults[newType]
+                    });
+                  }}
                   className="w-full"
                   disabled={!!editingServer}
                 >
@@ -252,14 +325,15 @@ export function Servers() {
                 </select>
               </div>
               <div>
-                <label className="block text-text-secondary text-sm mb-1">Name</label>
+                <label className="block text-text-secondary text-sm mb-1">
+                  Name <span className="text-text-muted">(optional, auto-generated if empty)</span>
+                </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="My Plex Server"
+                  placeholder={`My ${formData.service_type.charAt(0).toUpperCase() + formData.service_type.slice(1)} Server`}
                   className="w-full"
-                  required
                 />
               </div>
               <div>
@@ -268,7 +342,7 @@ export function Servers() {
                   type="url"
                   value={formData.url}
                   onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                  placeholder="https://plex.tv or http://localhost:8096"
+                  placeholder={formData.service_type === 'plex' ? 'http://localhost:32400' : formData.service_type === 'jellyfin' ? 'http://localhost:8096' : 'http://localhost:5055'}
                   className="w-full"
                   required
                 />

@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -12,9 +13,27 @@ from src.database.models import ServerConfig
 from src.api.plex import PlexClient
 from src.api.jellyfin import JellyfinClient
 from src.api.seerr import SeerrClient
+from src.utils.response import success_response, error_response
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/servers", tags=["servers"])
+
+
+def server_to_dict(server: ServerConfig) -> dict:
+    """Convert ServerConfig model to dictionary for JSON serialization."""
+    return {
+        "id": server.id,
+        "service_type": server.service_type,
+        "name": server.name,
+        "url": server.url,
+        "api_key": server.api_key,
+        "token": server.token,
+        "is_active": server.is_active,
+        "last_test_at": server.last_test_at.isoformat() if server.last_test_at else None,
+        "last_test_status": server.last_test_status,
+        "created_at": server.created_at.isoformat() if server.created_at else None,
+        "updated_at": server.updated_at.isoformat() if server.updated_at else None,
+    }
 
 
 class ServerConfigCreate(BaseModel):
@@ -60,14 +79,14 @@ class ServerTestResponse(BaseModel):
     message: str
 
 
-@router.get("", response_model=List[ServerConfigResponse])
+@router.get("")
 async def list_servers(db: Session = Depends(get_db)):
     """List all configured servers."""
     servers = db.query(ServerConfig).all()
-    return servers
+    return JSONResponse(content=success_response([server_to_dict(s) for s in servers]))
 
 
-@router.post("", response_model=ServerConfigResponse)
+@router.post("")
 async def create_server(config: ServerConfigCreate, db: Session = Depends(get_db)):
     """Add a new server configuration."""
     # Check if a server of this type already exists (only one per type allowed for now)
@@ -76,9 +95,12 @@ async def create_server(config: ServerConfigCreate, db: Session = Depends(get_db
     ).first()
     
     if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"A {config.service_type} server is already configured. Please update it instead."
+        return JSONResponse(
+            status_code=200,  # Change to 200 so frontend handles it normally
+            content=error_response(
+                f"A {config.service_type} server is already configured. Please update it instead.",
+                code="duplicate_server"
+            )
         )
     
     server = ServerConfig(**config.model_dump())
@@ -87,28 +109,34 @@ async def create_server(config: ServerConfigCreate, db: Session = Depends(get_db
     db.refresh(server)
     
     logger.info(f"Created {config.service_type} server config: {config.name}")
-    return server
+    return JSONResponse(content=success_response(server_to_dict(server)))
 
 
-@router.get("/{server_id}", response_model=ServerConfigResponse)
+@router.get("/{server_id}")
 async def get_server(server_id: int, db: Session = Depends(get_db)):
     """Get a specific server configuration."""
     server = db.query(ServerConfig).filter(ServerConfig.id == server_id).first()
     if not server:
-        raise HTTPException(status_code=404, detail="Server not found")
-    return server
+        return JSONResponse(
+            status_code=404,
+            content=error_response("Server not found", code="not_found")
+        )
+    return JSONResponse(content=success_response(server_to_dict(server)))
 
 
-@router.put("/{server_id}", response_model=ServerConfigResponse)
+@router.put("/{server_id}")
 async def update_server(
-    server_id: int, 
-    config: ServerConfigUpdate, 
+    server_id: int,
+    config: ServerConfigUpdate,
     db: Session = Depends(get_db)
 ):
     """Update a server configuration."""
     server = db.query(ServerConfig).filter(ServerConfig.id == server_id).first()
     if not server:
-        raise HTTPException(status_code=404, detail="Server not found")
+        return JSONResponse(
+            status_code=404,
+            content=error_response("Server not found", code="not_found")
+        )
     
     # Update only provided fields
     update_data = config.model_dump(exclude_unset=True)
@@ -120,7 +148,7 @@ async def update_server(
     db.refresh(server)
     
     logger.info(f"Updated server config: {server.name}")
-    return server
+    return JSONResponse(content=success_response(server_to_dict(server)))
 
 
 @router.delete("/{server_id}")
@@ -128,38 +156,53 @@ async def delete_server(server_id: int, db: Session = Depends(get_db)):
     """Delete a server configuration."""
     server = db.query(ServerConfig).filter(ServerConfig.id == server_id).first()
     if not server:
-        raise HTTPException(status_code=404, detail="Server not found")
+        return JSONResponse(
+            status_code=404,
+            content=error_response("Server not found", code="not_found")
+        )
     
     db.delete(server)
     db.commit()
     
     logger.info(f"Deleted server config: {server.name}")
-    return {"success": True, "message": "Server deleted successfully"}
+    return JSONResponse(content=success_response(message="Server deleted successfully"))
 
 
-@router.post("/{server_id}/test", response_model=ServerTestResponse)
+@router.post("/{server_id}/test")
 async def test_server_connection(server_id: int, db: Session = Depends(get_db)):
     """Test connection to a server."""
     server = db.query(ServerConfig).filter(ServerConfig.id == server_id).first()
     if not server:
-        raise HTTPException(status_code=404, detail="Server not found")
+        return JSONResponse(
+            status_code=404,
+            content=error_response("Server not found", code="not_found")
+        )
     
     try:
         if server.service_type == "plex":
             if not server.token:
-                raise HTTPException(status_code=400, detail="Plex token is required")
+                return JSONResponse(
+                    status_code=400,
+                    content=error_response("Plex token is required", code="missing_token")
+                )
             client = PlexClient(token=server.token, url=server.url)
             client.test_connection()
             
         elif server.service_type == "jellyfin":
             if not server.api_key:
-                raise HTTPException(status_code=400, detail="Jellyfin API key is required")
+                return JSONResponse(
+                    status_code=400,
+                    content=error_response("Jellyfin API key is required", code="missing_api_key")
+                )
             client = JellyfinClient(url=server.url, api_key=server.api_key)
             client.test_connection()
             
         elif server.service_type == "seerr":
             if not server.api_key:
-                raise HTTPException(status_code=400, detail="Seerr API key is required")
+                return JSONResponse(
+                    status_code=400,
+                    content=error_response("Seerr API key is required", code="missing_api_key")
+                )
             client = SeerrClient(url=server.url, api_key=server.api_key)
             client.test_connection()
         
@@ -168,7 +211,10 @@ async def test_server_connection(server_id: int, db: Session = Depends(get_db)):
         server.last_test_status = "success"
         db.commit()
         
-        return ServerTestResponse(success=True, message="Connection successful")
+        return JSONResponse(content=success_response(
+            {"success": True, "message": "Connection successful"},
+            message="Connection successful"
+        ))
         
     except Exception as e:
         # Update test status
@@ -177,4 +223,7 @@ async def test_server_connection(server_id: int, db: Session = Depends(get_db)):
         db.commit()
         
         logger.error(f"Server connection test failed for {server.name}: {e}")
-        return ServerTestResponse(success=False, message=f"Connection failed: {str(e)}")
+        return JSONResponse(content=success_response(
+            {"success": False, "message": f"Connection failed: {str(e)}"},
+            message=f"Connection failed: {str(e)}"
+        ))

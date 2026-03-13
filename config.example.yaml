@@ -15,16 +15,13 @@ seerr:
   api_key: "YOUR_SEERR_API_KEY"
 
 # User Mappings (no individual Plex tokens needed!)
-user_mappings:
-  - plex_username: "john_plex"
-    plex_user_id: "12345678"  # Plex user ID (optional, for faster lookups)
-    jellyfin_user_id: "abc123"
-    seerr_user_id: "1"
-    
-  - plex_username: "jane_plex"
-    plex_user_id: "87654321"
-    jellyfin_user_id: "def456"
-    seerr_user_id: "2"
+# Add your user mappings here or use the UI to create them
+# Example:
+# user_mappings:
+#   - plex_username: "john_plex"
+#     plex_user_id: "12345678"  # Plex user ID (optional, for faster lookups)
+#     jellyfin_user_id: "abc123"
+#     seerr_user_id: "1"
 
 # Sync Settings
 sync:

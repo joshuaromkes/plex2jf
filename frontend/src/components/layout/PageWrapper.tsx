@@ -13,13 +13,13 @@ export function PageWrapper({ children, title, description, action }: PageWrappe
       {/* Header */}
       <header className="bg-bg-secondary border-b border-bg-tertiary px-8 py-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-text-primary">{title}</h1>
             {description && (
-              <p className="text-text-secondary mt-1">{description}</p>
+              <p className="text-text-secondary mt-2">{description}</p>
             )}
           </div>
-          {action && <div>{action}</div>}
+          {action && <div className="ml-6">{action}</div>}
         </div>
       </header>
 

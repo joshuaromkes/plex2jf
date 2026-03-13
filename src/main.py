@@ -106,7 +106,7 @@ def get_sync_engine(db: Session = Depends(get_db)) -> SyncEngine:
         api_key=config.seerr.api_key,
     )
     
-    return SyncEngine(db, plex_client, jellyfin_client, seerr_client)
+    return SyncEngine(db, plex_client, jellyfin_client, seerr_client, config)
 
 
 @app.get("/api")

@@ -41,7 +41,9 @@ export async function get<T>(url: string): Promise<T> {
 export async function post<T>(url: string, data?: unknown): Promise<T> {
   const response = await api.post<ApiResponse<T>>(url, data);
   if (!response.data.success) {
-    throw new Error(response.data.error?.message || 'Unknown error');
+    // Return the response even if success is false, don't throw an error
+    // This allows the caller to handle errors gracefully
+    return response.data as any;
   }
   return response.data.data as T;
 }

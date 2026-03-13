@@ -187,6 +187,11 @@ export function UserMappingPage() {
         <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
           <Users className="w-5 h-5" />
           Active Mappings
+          {mappings.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-text-muted">
+              {mappings.length} user{mappings.length !== 1 ? 's' : ''} mapped
+            </span>
+          )}
         </h2>
         {mappings.length === 0 ? (
           <p className="text-text-secondary text-center py-8">No user mappings configured yet</p>

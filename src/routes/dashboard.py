@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -70,7 +71,22 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
     
     # User stats
     users_mapped = db.query(UserMapping).filter(UserMapping.is_active == True).count()
-    external_users = db.query(ExternalUser).count()
+    
+    # Count uniquely mapped users, not just ExternalUser entries
+    # This ensures the count of "total external users" is accurate and not duplicated
+    plex_users = db.query(func.count(func.distinct(ExternalUser.external_id))).filter(
+        ExternalUser.service_type == "plex"
+    ).scalar() or 0
+    
+    jellyfin_users = db.query(func.count(func.distinct(ExternalUser.external_id))).filter(
+        ExternalUser.service_type == "jellyfin"
+    ).scalar() or 0
+    
+    seerr_users = db.query(func.count(func.distinct(ExternalUser.external_id))).filter(
+        ExternalUser.service_type == "seerr"
+    ).scalar() or 0
+    
+    external_users = plex_users + jellyfin_users + seerr_users
     
     # Sync stats
     items_synced = db.query(SyncState).filter(
@@ -165,8 +181,8 @@ async def get_activity_feed(
     
     return {
         "success": True,
-        "data": activity_items,
-        "pagination": {
+        "data": {
+            "items": activity_items,
             "page": page,
             "per_page": per_page,
             "total": total,
@@ -178,14 +194,64 @@ async def get_activity_feed(
 @router.post("/sync")
 async def trigger_manual_sync(db: Session = Depends(get_db)):
     """Trigger a manual sync operation."""
-    # This will be implemented with the existing sync engine
+    from src.api.plex import PlexClient
+    from src.api.jellyfin import JellyfinClient
+    from src.api.seerr import SeerrClient
+    from src.config.settings import load_config
+    from src.services.sync_engine import SyncEngine
+    from src.services.poller import PollerService
+    from src.database.models import ServerConfig
+    
     logger.info("Manual sync triggered via API")
     
-    # For now, return success - the actual sync will be handled by the poller
-    return {
-        "success": True,
-        "message": "Sync triggered successfully. Check activity feed for progress."
-    }
+    try:
+        # Get server configs from database
+        plex_server = db.query(ServerConfig).filter(
+            ServerConfig.service_type == "plex",
+            ServerConfig.is_active == True
+        ).first()
+        
+        jellyfin_server = db.query(ServerConfig).filter(
+            ServerConfig.service_type == "jellyfin",
+            ServerConfig.is_active == True
+        ).first()
+        
+        seerr_server = db.query(ServerConfig).filter(
+            ServerConfig.service_type == "seerr",
+            ServerConfig.is_active == True
+        ).first()
+        
+        if not plex_server:
+            return {
+                "success": False,
+                "error": {"message": "No active Plex server configured"}
+            }
+        
+        # Create clients
+        plex_client = PlexClient(token=plex_server.token, url=plex_server.url)
+        jellyfin_client = JellyfinClient(url=jellyfin_server.url, api_key=jellyfin_server.api_key) if jellyfin_server else None
+        seerr_client = SeerrClient(url=seerr_server.url, api_key=seerr_server.api_key) if seerr_server else None
+
+        # Load runtime config so feature flags are available to Poller/SyncEngine
+        config = load_config()
+        
+        sync_engine = SyncEngine(db, plex_client, jellyfin_client, seerr_client, config)
+        poller = PollerService(db, plex_client, sync_engine)
+        
+        # Run the sync
+        count = poller.poll_plex_watchlists()
+        
+        return {
+            "success": True,
+            "message": f"Sync completed. {count} items synced.",
+            "data": {"synced_items": count}
+        }
+    except Exception as e:
+        logger.error(f"Error during manual sync: {e}")
+        return {
+            "success": False,
+            "error": {"message": str(e)}
+        }
 
 
 @router.post("/retry")
