@@ -21,9 +21,11 @@ Updated after the latest Plex GraphQL/Tory retest cycle.
 - **Notes**: Product/UI enhancement, not blocking sync.
 
 ### Issue 13: Auto-Created `john_plex` / `jane_plex` Mapping Noise on Restart
-- **Status**: ⏳ Open
+- **Status**: ✅ Fixed
 - **Notes**:
-  - Remove or control recurring auto-created mapping references during rebuild/restart.
+  - Added detection and skipping of example/placeholder mappings in `UserMapper.sync_user_mappings()`.
+  - Example usernames (`john_plex`, `jane_plex`) and placeholder IDs (`abc123`, `def456`, etc.) are now ignored during config sync.
+  - Existing mappings can be manually deleted; they will not be recreated on restart.
 
 ---
 

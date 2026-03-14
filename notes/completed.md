@@ -42,7 +42,7 @@
 - Rebuild + verify manual sync end-to-end
 - Expand mapped-user discovery to include account owner + friends + managed users
 - Add Seerr existing-request lookup to avoid duplicate watchlist requests
-- Add GraphQL user-id candidate fallback for managed users
+- Add GraphQL user-id candidate fallback for user_mapping.py
 
 **Seerr→Jellyfin Sync Implementation (Completed)**
 - Research Seerr API for fetching completed/approved/available requests per user (statuses: APPROVED, PROCESSING, AVAILABLE, FILLED)
@@ -57,3 +57,4 @@
 - Keep/enhance webhook handler for real‑time sync of single requests
 - Update notes/issues.md Issue 12 with resolution details
 - Verify Seerr→Jellyfin sync is working (logs show successful favorites)
+- Need to remove watchlistarr directory from project, it was a repo used to find info on plex watchlist pulling, Need to find deps and remove / reimplement to remove dir

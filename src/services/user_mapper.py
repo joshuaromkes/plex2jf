@@ -23,6 +23,11 @@ class UserMapper:
             mappings: List of user mappings from config
         """
         for mapping in mappings:
+            # Skip example/placeholder mappings
+            if self._is_example_mapping(mapping):
+                logger.debug(f"Skipping example mapping for {mapping.plex_username}")
+                continue
+            
             # Check if mapping exists
             existing = (
                 self.db.query(UserMappingModel)
@@ -48,6 +53,29 @@ class UserMapper:
                 logger.info(f"Created user mapping for {mapping.plex_username}")
         
         self.db.commit()
+    
+    def _is_example_mapping(self, mapping: UserMapping) -> bool:
+        """Check if a mapping looks like an example/placeholder.
+        
+        Args:
+            mapping: User mapping to check
+            
+        Returns:
+            True if mapping appears to be an example
+        """
+        # Common example usernames from config.example.yaml
+        example_usernames = {"john_plex", "jane_plex", "john", "jane"}
+        if mapping.plex_username in example_usernames:
+            return True
+        
+        # Common placeholder IDs
+        placeholder_ids = {"abc123", "def456", "12345678", "87654321"}
+        if mapping.jellyfin_user_id in placeholder_ids:
+            return True
+        if mapping.seerr_user_id in {"1", "2"}:
+            return True
+        
+        return False
     
     def get_mapping_by_plex_username(self, plex_username: str) -> Optional[UserMappingModel]:
         """Get user mapping by Plex username.
