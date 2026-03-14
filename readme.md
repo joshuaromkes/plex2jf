@@ -165,12 +165,12 @@ http://localhost:8000
 
 ### Features
 - **Dashboard**: Overview of sync statistics and system health.
-- **Servers**: Configure Plex, Jellyfin, and Seerr connections with test buttons.
-- **User Mapping**: Table‑based interface for mapping users between services with inline editing and per‑mapping statistics.
+- **Servers**: Configure Plex, Jellyfin, and Seerr connections with test buttons. The form now includes an optional name field with auto-generated placeholder and improved spacing for better user experience.
+- **User Mapping**: Table-based interface for mapping users between services with inline editing, searchable dropdowns, and per-mapping statistics.
 - **Settings**: Adjust sync preferences and logging levels.
 - **Activity**: View recent sync events and logs.
 
-The UI follows an "Arr‑style" dark theme and is fully responsive.
+The UI follows an "Arr-style" dark theme and is fully responsive, enhancing usability with clearer layouts and consistent design.
 
 ## How It Works
 

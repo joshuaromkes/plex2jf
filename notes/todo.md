@@ -1,6 +1,4 @@
 **Backlog / Next Improvements**
-- [x] Issue 2: Servers page spacing polish (completed)
-- [x] Issue 3: Rework add-server form (auto-name + IP/Port UX) (completed)
 - [ ] Add explicit Test Connection UX in add-server flow
 - [ ] Add export/import for servers, mappings, and app settings
 - [ ] Optional: reduce temporary high-volume diagnostic logging after stability window
@@ -8,15 +6,13 @@
 
 # Current To-Do List
 
-in the user mapping dropdowns when mapping new users, hide users already mapped to not map them twice
+- Frontend Authentication, implement authentication following best practices. allow web page auth or http auth. allow admin to change in settings.
+- In the user mapping dropdowns when mapping new users, hide users already mapped to not map them twice
 
 ## High-Priority Issues
 - Feature: Loose Content Mapping (Improved Match Hit Rate)
 
 ## Bugs
-- Issue 2: Servers UI Formatting ✅ (spacing improved)
-- Issue 3: Add Server Form Asks for Unnecessary Name ✅ (auto‑generated name with hint)
-- Issue 13: Auto-Created `john_plex` / `jane_plex` Mapping Noise on Restart ✅ (fixed)
 - Issue: Frontend Seer Request Sync stats not working
 
 ## Feature Requests
@@ -29,4 +25,4 @@ in the user mapping dropdowns when mapping new users, hide users already mapped 
 - Feature Request: Fully build out logging levels, and a live log viewer within web frontend.
 
 ## Technical Debt / Follow-up
-- Optional cleanup: downgrade temporary high-volume diagnostics once stable behavior is confirmed in longer-running production use.
+- Optional cleanup: downgrade temporary high-volume diagnostic logging once stable behavior is confirmed in longer-running production use.

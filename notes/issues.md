@@ -12,26 +12,6 @@ Updated after the latest Plex GraphQL/Tory retest cycle.
 
 ## Bugs
 
-### Issue 2: Servers UI Formatting
-- **Status**: ✅ Resolved
-- **Notes**: Increased vertical spacing (`space-y-6`) and modal padding for better UX.
-
-Hitting edit under user maps resets the entry, all fields have to be re-inputted. 
-
-seerr stats under user mapping shows 0 for all fields
-
-### Issue 3: Add Server Form Asks for Unnecessary Name
-- **Status**: ✅ Resolved
-- **Notes**: Name field now optional with clear hint text; auto‑generated name shown in placeholder.
-
-### Issue 13: Auto-Created `john_plex` / `jane_plex` Mapping Noise on Restart
-- **Status**: ✅ Fixed
-- **Notes**:
-  - Added detection and skipping of example/placeholder mappings in `UserMapper.sync_user_mappings()`.
-  - Example usernames (`john_plex`, `jane_plex`) and placeholder IDs (`abc123`, `def456`, etc.) are now ignored during config sync.
-  - Existing mappings can be manually deleted; they will not be recreated on restart.
-
----
 
 ## Feature Requests
 
@@ -65,14 +45,12 @@ seerr stats under user mapping shows 0 for all fields
 - **Status**: 💡 Backlog
 - **Priority**: Low
 
-### Feature Request: Separate buttons for favourites sync, and watchlist sync and user sync from dashboard
-### Feature Request: Under user mapping. create a table type form with dropdowns for each user instead of a separate form / button for each. See excel style tabling with integrated button to trigger a watchlist sync, stat on watchlist item count, request count and manual sync for watchlist & faves. 
+- ### Feature Request: Separate buttons for favourites sync, and watchlist sync and user sync from dashboard
+- ### Feature Request: Under user mapping. create a table type form with dropdowns for each user instead of a separate form / button for each. See excel style tabling with integrated button to trigger a watchlist sync, stat on watchlist item count, request count and manual sync for watchlist & faves.
 ### Feature Request: Fully build out logging levels, and a live log viewer within web frontend.
 - Issue: right now logging under settings does nothing in terms of log output to plex2jf.log or webui output. 
 
-### Issue: Frontend Seer Request Sync stats not working
----
-
+- ### Issue: Frontend Seer Request Sync stats not working
 ## Technical Debt / Follow-up
 
 - Optional cleanup: downgrade temporary high-volume diagnostics once stable behavior is confirmed in longer-running production use.

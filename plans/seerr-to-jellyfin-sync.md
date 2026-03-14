@@ -1,5 +1,7 @@
 # Seerr Completed Requests → Jellyfin Favorites Sync (Polling)
 
+**Status: Implemented (See notes/completed.md for details)**
+
 ## Simple Explanation
 Instead of waiting for Seerr webhooks (which your version lacks for 'fulfilled'), the app will **automatically check Seerr every 15 minutes** for all approved/available requests from mapped users.
 

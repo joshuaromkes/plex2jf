@@ -6,6 +6,9 @@
 - Issue 1: User Mapping UI Shows Incorrect Count
 - Issue 4: Server Save Shows Error Despite Success
 - Issue 5: Service Type Defaults are Wrong
+- Issue 2: Servers UI Formatting - Increased vertical spacing (`space-y-6`) and modal padding for better UX.
+- Issue 3: Add Server Form Asks for Unnecessary Name - Name field now optional with clear hint text; auto‑generated name shown in placeholder.
+- Issue 13: Auto-Created `john_plex` / `jane_plex` Mapping Noise on Restart - Added detection and skipping of example/placeholder mappings in `UserMapper.sync_user_mappings()`. Example usernames (`john_plex`, `jane_plex`) and placeholder IDs (`abc123`, `def456`, etc.) are now ignored during config sync. Existing mappings can be manually deleted; they will not be recreated on restart.
 
 ### Active Development Issues (Sync Pipeline)
 - Issue 6: Plex Friend Watchlist Sync - Only Fetching 2 of 3 Mapped Users
