@@ -13,12 +13,16 @@ Updated after the latest Plex GraphQL/Tory retest cycle.
 ## Bugs
 
 ### Issue 2: Servers UI Formatting
-- **Status**: ⏳ Open
-- **Notes**: Cosmetic spacing improvement still optional.
+- **Status**: ✅ Resolved
+- **Notes**: Increased vertical spacing (`space-y-6`) and modal padding for better UX.
+
+Hitting edit under user maps resets the entry, all fields have to be re-inputted. 
+
+seerr stats under user mapping shows 0 for all fields
 
 ### Issue 3: Add Server Form Asks for Unnecessary Name
-- **Status**: 💡 Backlog
-- **Notes**: Product/UI enhancement, not blocking sync.
+- **Status**: ✅ Resolved
+- **Notes**: Name field now optional with clear hint text; auto‑generated name shown in placeholder.
 
 ### Issue 13: Auto-Created `john_plex` / `jane_plex` Mapping Noise on Restart
 - **Status**: ✅ Fixed

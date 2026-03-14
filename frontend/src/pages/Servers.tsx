@@ -202,7 +202,7 @@ export function Servers() {
       }
     >
       {/* Server List */}
-      <div className="space-y-4">
+      <div className="space-y-6">
         {servers.length === 0 ? (
           <div className="card text-center py-12">
             <p className="text-text-secondary mb-4">No servers configured yet</p>
@@ -217,7 +217,7 @@ export function Servers() {
           servers.map((server) => (
             <div key={server.id} className="card">
               <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-5">
                   <div className="w-12 h-12 bg-bg-tertiary rounded-lg flex items-center justify-center text-xl">
                     {getServiceIcon(server.service_type)}
                   </div>
@@ -234,7 +234,7 @@ export function Servers() {
                     </div>
                     <p className="text-text-secondary text-sm">{server.url}</p>
                     <p className="text-text-muted text-xs mt-1">
-                      {server.api_key ? `API Key: ••••${server.api_key.slice(-4)}` : 
+                      {server.api_key ? `API Key: ••••${server.api_key.slice(-4)}` :
                        server.token ? `Token: ••••${server.token.slice(-4)}` : 'No credentials'}
                     </p>
                   </div>
@@ -272,11 +272,11 @@ export function Servers() {
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-bg-secondary rounded-lg p-6 w-full max-w-md border border-bg-tertiary">
-            <h2 className="text-xl font-bold text-text-primary mb-4">
+          <div className="bg-bg-secondary rounded-lg p-8 w-full max-w-md border border-bg-tertiary">
+            <h2 className="text-xl font-bold text-text-primary mb-6">
               {editingServer ? 'Edit Server' : 'Add Server'}
             </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="block text-text-secondary text-sm mb-1">Service Type</label>
                 <select

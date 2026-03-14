@@ -61,6 +61,21 @@ export interface ExternalUser {
   last_synced_at: string;
 }
 
+export interface UserMappingStats {
+  mapping_id: number;
+  plex_username: string;
+  jellyfin_user_id: string;
+  seerr_user_id: string;
+  watchlist_total: number;
+  watchlist_synced: number;
+  watchlist_pending: number;
+  watchlist_failed: number;
+  seerr_requests_total: number;
+  seerr_requests_synced: number;
+  seerr_requests_pending: number;
+  seerr_requests_failed: number;
+}
+
 // Settings types
 export interface AppSettings {
   sync_plex_watchlist: boolean;

@@ -1,6 +1,6 @@
 **Backlog / Next Improvements**
-- [ ] Issue 2: Servers page spacing polish
-- [ ] Issue 3: Rework add-server form (auto-name + IP/Port UX)
+- [x] Issue 2: Servers page spacing polish (completed)
+- [x] Issue 3: Rework add-server form (auto-name + IP/Port UX) (completed)
 - [ ] Add explicit Test Connection UX in add-server flow
 - [ ] Add export/import for servers, mappings, and app settings
 - [ ] Optional: reduce temporary high-volume diagnostic logging after stability window
@@ -8,13 +8,15 @@
 
 # Current To-Do List
 
+in the user mapping dropdowns when mapping new users, hide users already mapped to not map them twice
+
 ## High-Priority Issues
 - Feature: Loose Content Mapping (Improved Match Hit Rate)
 
 ## Bugs
-- Issue 2: Servers UI Formatting
-- Issue 3: Add Server Form Asks for Unnecessary Name
-- Issue 13: Auto-Created `john_plex` / `jane_plex` Mapping Noise on Restart
+- Issue 2: Servers UI Formatting ✅ (spacing improved)
+- Issue 3: Add Server Form Asks for Unnecessary Name ✅ (auto‑generated name with hint)
+- Issue 13: Auto-Created `john_plex` / `jane_plex` Mapping Noise on Restart ✅ (fixed)
 - Issue: Frontend Seer Request Sync stats not working
 
 ## Feature Requests

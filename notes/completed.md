@@ -58,3 +58,12 @@
 - Update notes/issues.md Issue 12 with resolution details
 - Verify Seerr→Jellyfin sync is working (logs show successful favorites)
 - Need to remove watchlistarr directory from project, it was a repo used to find info on plex watchlist pulling, Need to find deps and remove / reimplement to remove dir
+
+**Frontend UI Improvements (Completed)**
+- User Mapping page redesigned as a table with inline editing and searchable dropdowns
+- Added per‑mapping statistics (watchlist and Seerr request counts) via new `/api/users/mappings/stats` endpoint
+- “Add Mapping” now inserts a new row directly into the table (no separate modal)
+- Servers page spacing improved (`space-y-6`, larger gaps, better modal padding)
+- Server form name field made optional with clear hint text and auto‑generated placeholder
+- Updated frontend types (`UserMappingStats`) and API service to support new stats
+- Created `notes/ui-improvements-plan.md` documenting the changes

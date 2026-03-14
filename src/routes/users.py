@@ -6,10 +6,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.database.session import get_db
-from src.database.models import UserMapping, ExternalUser, ServerConfig
+from src.database.models import UserMapping, ExternalUser, ServerConfig, SyncState
 from src.api.plex import PlexClient
 from src.api.jellyfin import JellyfinClient
 from src.api.seerr import SeerrClient
@@ -102,6 +103,22 @@ class ExternalUserList(BaseModel):
     seerr: List[ExternalUserResponse]
 
 
+class UserMappingStats(BaseModel):
+    """Schema for user mapping statistics."""
+    mapping_id: int
+    plex_username: str
+    jellyfin_user_id: str
+    seerr_user_id: str
+    watchlist_total: int
+    watchlist_synced: int
+    watchlist_pending: int
+    watchlist_failed: int
+    seerr_requests_total: int
+    seerr_requests_synced: int
+    seerr_requests_pending: int
+    seerr_requests_failed: int
+
+
 @router.get("/mappings")
 async def list_user_mappings(db: Session = Depends(get_db)):
     """Get all user mappings."""
@@ -174,6 +191,63 @@ async def delete_user_mapping(mapping_id: int, db: Session = Depends(get_db)):
     
     logger.info(f"Deleted user mapping for {mapping.plex_username}")
     return JSONResponse(content=success_response(message="User mapping deleted successfully"))
+
+
+@router.get("/mappings/stats")
+async def get_user_mapping_stats(db: Session = Depends(get_db)):
+    """Get statistics for all user mappings."""
+    mappings = db.query(UserMapping).all()
+    stats = []
+    
+    for mapping in mappings:
+        # Watchlist stats (source='plex_watchlist')
+        watchlist_query = db.query(SyncState).filter(
+            SyncState.user_mapping_id == mapping.id,
+            SyncState.source == 'plex_watchlist'
+        )
+        watchlist_total = watchlist_query.count()
+        watchlist_synced = watchlist_query.filter(SyncState.synced_to_jellyfin == True).count()
+        watchlist_pending = watchlist_query.filter(
+            SyncState.synced_to_jellyfin == False,
+            SyncState.retry_count < 3
+        ).count()
+        watchlist_failed = watchlist_query.filter(
+            SyncState.synced_to_jellyfin == False,
+            SyncState.retry_count >= 3
+        ).count()
+        
+        # Seerr request stats (source='seerr_request')
+        seerr_query = db.query(SyncState).filter(
+            SyncState.user_mapping_id == mapping.id,
+            SyncState.source == 'seerr_request'
+        )
+        seerr_total = seerr_query.count()
+        seerr_synced = seerr_query.filter(SyncState.synced_to_jellyfin == True).count()
+        seerr_pending = seerr_query.filter(
+            SyncState.synced_to_jellyfin == False,
+            SyncState.retry_count < 3
+        ).count()
+        seerr_failed = seerr_query.filter(
+            SyncState.synced_to_jellyfin == False,
+            SyncState.retry_count >= 3
+        ).count()
+        
+        stats.append({
+            "mapping_id": mapping.id,
+            "plex_username": mapping.plex_username,
+            "jellyfin_user_id": mapping.jellyfin_user_id,
+            "seerr_user_id": mapping.seerr_user_id,
+            "watchlist_total": watchlist_total,
+            "watchlist_synced": watchlist_synced,
+            "watchlist_pending": watchlist_pending,
+            "watchlist_failed": watchlist_failed,
+            "seerr_requests_total": seerr_total,
+            "seerr_requests_synced": seerr_synced,
+            "seerr_requests_pending": seerr_pending,
+            "seerr_requests_failed": seerr_failed,
+        })
+    
+    return JSONResponse(content=success_response(stats))
 
 
 @router.get("/plex")

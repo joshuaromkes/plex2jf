@@ -64,13 +64,14 @@ export async function del<T>(url: string): Promise<T> {
   return response.data.data as T;
 }
 
-import type { 
-  ServerConfig, 
-  ServerConfigCreate, 
+import type {
+  ServerConfig,
+  ServerConfigCreate,
   ServerConfigUpdate,
   UserMapping,
   UserMappingCreate,
   ExternalUser,
+  UserMappingStats,
   AppSettings,
   DashboardStats,
   ActivityResponse,
@@ -91,6 +92,7 @@ export const serversApi = {
 // Users API
 export const usersApi = {
   getMappings: () => get<UserMapping[]>('/api/users/mappings'),
+  getMappingStats: () => get<UserMappingStats[]>('/api/users/mappings/stats'),
   createMapping: (data: UserMappingCreate) => post<UserMapping>('/api/users/mappings', data),
   updateMapping: (id: number, data: Partial<UserMappingCreate>) => put<UserMapping>(`/api/users/mappings/${id}`, data),
   deleteMapping: (id: number) => del<{ message: string }>(`/api/users/mappings/${id}`),

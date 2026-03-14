@@ -153,6 +153,25 @@ logging:
 | `/sync/retry-pending` | POST | Retry pending items |
 | `/webhooks/seerr` | POST | Seerr webhook endpoint |
 
+## Web UI
+
+plex2jf includes a modern web interface for managing servers, user mappings, and monitoring sync statistics.
+
+### Access
+After starting the service, open your browser to:
+```
+http://localhost:8000
+```
+
+### Features
+- **Dashboard**: Overview of sync statistics and system health.
+- **Servers**: Configure Plex, Jellyfin, and Seerr connections with test buttons.
+- **User Mapping**: Table‑based interface for mapping users between services with inline editing and per‑mapping statistics.
+- **Settings**: Adjust sync preferences and logging levels.
+- **Activity**: View recent sync events and logs.
+
+The UI follows an "Arr‑style" dark theme and is fully responsive.
+
 ## How It Works
 
 ### Seerr → Jellyfin Sync
