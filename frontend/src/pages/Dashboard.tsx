@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { 
-  Server, 
-  Users, 
-  CheckCircle, 
-  Clock, 
+import {
+  Server,
+  Users,
+  CheckCircle,
+  Clock,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  ListChecks,
+  AlertTriangle
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { dashboardApi, systemApi } from '../services/api';
@@ -139,6 +141,41 @@ export function Dashboard() {
           color={stats?.items_pending ? 'yellow' : 'green'}
           subtext={stats?.items_failed ? `${stats.items_failed} failed` : undefined}
         />
+      </div>
+
+      {/* Seerr Request Sync Stats */}
+      <div className="card mb-8">
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Seerr Request Sync</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            icon={ListChecks}
+            label="Total Requests"
+            value={stats?.seerr_request?.total || 0}
+            color="blue"
+            subtext="Seerr requests tracked"
+          />
+          <StatCard
+            icon={CheckCircle}
+            label="Synced to Jellyfin"
+            value={stats?.seerr_request?.synced || 0}
+            color="green"
+            subtext="Favorited in Jellyfin"
+          />
+          <StatCard
+            icon={Clock}
+            label="Pending"
+            value={stats?.seerr_request?.pending || 0}
+            color={stats?.seerr_request?.pending ? 'yellow' : 'green'}
+            subtext="Waiting for library item"
+          />
+          <StatCard
+            icon={AlertTriangle}
+            label="Failed"
+            value={stats?.seerr_request?.failed || 0}
+            color={stats?.seerr_request?.failed ? 'red' : 'green'}
+            subtext="Exceeded retry limit"
+          />
+        </div>
       </div>
 
       {/* Server Status */}

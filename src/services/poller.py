@@ -190,3 +190,24 @@ class PollerService:
             Number of items successfully synced
         """
         return self.sync_engine.retry_pending_items()
+
+    def poll_seerr_requests_to_jellyfin(self) -> int:
+        """Poll Seerr requests and sync completed/approved items to Jellyfin.
+
+        Returns:
+            Number of items synced to Jellyfin
+        """
+        logger.info("Starting Seerr request poll...")
+
+        try:
+            summary = self.sync_engine.sync_seerr_completed_to_jellyfin(
+                statuses=['APPROVED', 'PROCESSING', 'AVAILABLE', 'FILLED']
+            )
+            synced_count = int(summary.get('synced', 0))
+            self._update_polling_state('seerr_requests', success=True)
+            logger.info("Seerr request poll complete. Summary: %s", summary)
+            return synced_count
+        except Exception as e:
+            logger.error(f"Error polling Seerr requests: {e}")
+            self._update_polling_state('seerr_requests', success=False)
+            return 0

@@ -113,6 +113,41 @@ class JellyfinClient:
         
         logger.error(f"Failed to favorite item {item_id} for user {user_id}")
         return False
+
+    def is_item_favorited(
+        self,
+        user_id: str,
+        tmdb_id: str,
+        media_type: Optional[str] = None,
+    ) -> bool:
+        """Check whether an item is already favorited by a user.
+
+        Args:
+            user_id: Jellyfin user ID
+            tmdb_id: TMDB ID
+            media_type: Optional Jellyfin item type ('Movie' or 'Series')
+
+        Returns:
+            True if favorited, False otherwise
+        """
+        params = {
+            'Recursive': 'true',
+            'Filters': 'IsFavorite',
+            'AnyProviderIdEquals': f'tmdb.{tmdb_id}',
+            'Limit': '1',
+        }
+
+        if media_type:
+            params['IncludeItemTypes'] = media_type
+        else:
+            params['IncludeItemTypes'] = 'Movie,Series'
+
+        result = self._make_request('GET', f'/Users/{user_id}/Items', params=params)
+        if not result:
+            return False
+
+        items = result.get('Items', []) if isinstance(result, dict) else []
+        return len(items) > 0
     
     def unfavorite_item(self, user_id: str, item_id: str) -> bool:
         """Remove item from favorites for user.

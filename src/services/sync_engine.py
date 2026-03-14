@@ -2,7 +2,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Set, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -100,6 +100,42 @@ class SyncEngine:
             logger.info(f"Item not in Jellyfin yet, marked as pending: {title}")
             return False
         
+        # If already favorited, mark state as synced without calling favorite again.
+        try:
+            already_favorited = self.jellyfin.is_item_favorited(
+                user_mapping.jellyfin_user_id,
+                tmdb_id,
+                jf_media_type,
+            )
+        except Exception as e:
+            logger.warning(f"Failed favorite pre-check for {title}: {e}")
+            already_favorited = False
+
+        if already_favorited:
+            if existing:
+                existing.synced_to_jellyfin = True
+                existing.jellyfin_item_id = item['Id']
+                existing.last_synced_at = datetime.utcnow()
+                existing.last_error = None
+            else:
+                self.db.add(
+                    SyncState(
+                        user_mapping_id=user_mapping.id,
+                        media_type=media_type,
+                        external_id=tmdb_id,
+                        title=title,
+                        source='seerr_request',
+                        source_id=request_id,
+                        synced_to_jellyfin=True,
+                        jellyfin_item_id=item['Id'],
+                        last_synced_at=datetime.utcnow(),
+                    )
+                )
+
+            self.db.commit()
+            logger.info(f"Already favorited in Jellyfin: {title}")
+            return True
+
         # Favorite the item
         success = self.jellyfin.favorite_item(
             user_mapping.jellyfin_user_id,
@@ -136,6 +172,140 @@ class SyncEngine:
                 existing.last_error = "Failed to favorite item"
             self.db.commit()
             return False
+
+    def _extract_seerr_request_payload(self, request: Dict[str, Any]) -> Optional[Dict[str, str]]:
+        """Extract normalized request fields from a Seerr request payload."""
+        media = request.get('media', {}) if isinstance(request, dict) else {}
+
+        raw_media_type = str(
+            media.get('mediaType')
+            or request.get('mediaType')
+            or request.get('type')
+            or ''
+        ).lower()
+        media_type = 'movie' if raw_media_type == 'movie' else 'tv'
+
+        tmdb_id = media.get('tmdbId') or request.get('mediaId')
+        if tmdb_id is None:
+            return None
+
+        title = (
+            media.get('title')
+            or request.get('subject')
+            or request.get('title')
+            or 'Unknown'
+        )
+
+        request_id = request.get('id')
+
+        return {
+            'media_type': media_type,
+            'tmdb_id': str(tmdb_id),
+            'title': str(title),
+            'request_id': str(request_id) if request_id is not None else None,
+        }
+
+    def sync_seerr_completed_to_jellyfin(
+        self,
+        statuses: Optional[List[str]] = None,
+    ) -> Dict[str, int]:
+        """Sync Seerr completed/approved requests to Jellyfin favorites.
+
+        This is a polling-based sync path that queries Seerr by user and status,
+        then attempts to favorite matching Jellyfin items.
+        """
+        summary = {
+            'users_processed': 0,
+            'requests_seen': 0,
+            'synced': 0,
+            'pending': 0,
+            'failed': 0,
+            'skipped': 0,
+        }
+
+        if self.seerr is None or self.jellyfin is None:
+            logger.warning("Seerr/Jellyfin client missing; skipping Seerr completed sync")
+            return summary
+
+        target_statuses = statuses or ['APPROVED', 'PROCESSING', 'AVAILABLE', 'FILLED']
+        mappings = (
+            self.db.query(UserMapping)
+            .filter(UserMapping.is_active == True)
+            .all()
+        )
+
+        seen_keys: Set[Tuple[int, str, str]] = set()
+
+        for mapping in mappings:
+            summary['users_processed'] += 1
+
+            try:
+                requests = self.seerr.get_user_requests(
+                    user_id=int(mapping.seerr_user_id),
+                    statuses=target_statuses,
+                )
+            except Exception as e:
+                logger.error(f"Failed loading Seerr requests for user {mapping.seerr_user_id}: {e}")
+                summary['failed'] += 1
+                continue
+
+            for request in requests:
+                normalized = self._extract_seerr_request_payload(request)
+                if not normalized:
+                    summary['skipped'] += 1
+                    continue
+
+                key = (mapping.id, normalized['tmdb_id'], normalized['media_type'])
+                if key in seen_keys:
+                    summary['skipped'] += 1
+                    continue
+                seen_keys.add(key)
+
+                summary['requests_seen'] += 1
+
+                existing = (
+                    self.db.query(SyncState)
+                    .filter(
+                        SyncState.user_mapping_id == mapping.id,
+                        SyncState.external_id == normalized['tmdb_id'],
+                        SyncState.source == 'seerr_request',
+                    )
+                    .first()
+                )
+
+                if existing and existing.synced_to_jellyfin:
+                    summary['skipped'] += 1
+                    continue
+
+                success = self.sync_seerr_request_to_jellyfin(
+                    seerr_user_id=str(mapping.seerr_user_id),
+                    media_type=normalized['media_type'],
+                    tmdb_id=normalized['tmdb_id'],
+                    title=normalized['title'],
+                    request_id=normalized['request_id'],
+                )
+
+                if success:
+                    summary['synced'] += 1
+                    continue
+
+                refreshed = (
+                    self.db.query(SyncState)
+                    .filter(
+                        SyncState.user_mapping_id == mapping.id,
+                        SyncState.external_id == normalized['tmdb_id'],
+                        SyncState.source == 'seerr_request',
+                    )
+                    .first()
+                )
+
+                if refreshed and (refreshed.last_error or '').startswith('Item not found in Jellyfin library'):
+                    summary['pending'] += 1
+                else:
+                    summary['failed'] += 1
+
+        logger.info("Seerr completed->Jellyfin sync summary: %s", summary)
+        return summary
     
     def sync_plex_watchlist_to_seerr(
         self,
@@ -446,10 +616,28 @@ class SyncEngine:
         synced_jf = self.db.query(SyncState).filter(SyncState.synced_to_jellyfin == True).count()
         synced_seerr = self.db.query(SyncState).filter(SyncState.synced_to_seerr == True).count()
         pending = self.db.query(SyncState).filter(SyncState.synced_to_jellyfin == False).count()
-        
+
+        seerr_query = self.db.query(SyncState).filter(SyncState.source == 'seerr_request')
+        seerr_total = seerr_query.count()
+        seerr_synced = seerr_query.filter(SyncState.synced_to_jellyfin == True).count()
+        seerr_pending = seerr_query.filter(
+            SyncState.synced_to_jellyfin == False,
+            SyncState.retry_count < 3,
+        ).count()
+        seerr_failed = seerr_query.filter(
+            SyncState.synced_to_jellyfin == False,
+            SyncState.retry_count >= 3,
+        ).count()
+
         return {
             'total_items': total,
             'synced_to_jellyfin': synced_jf,
             'synced_to_seerr': synced_seerr,
             'pending': pending,
+            'seerr_request': {
+                'total': seerr_total,
+                'synced_to_jellyfin': seerr_synced,
+                'pending': seerr_pending,
+                'failed': seerr_failed,
+            },
         }

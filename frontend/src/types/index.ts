@@ -80,6 +80,12 @@ export interface DashboardStats {
   items_synced: number;
   items_pending: number;
   items_failed: number;
+  seerr_request: {
+    total: number;
+    synced: number;
+    pending: number;
+    failed: number;
+  };
 }
 
 export interface ActivityItem {

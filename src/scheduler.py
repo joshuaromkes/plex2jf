@@ -50,6 +50,10 @@ def run_polling_job():
             if config.sync.features.plex_watchlist_to_seerr or config.sync.features.plex_watchlist_to_jellyfin:
                 poller.poll_plex_watchlists()
             
+            # Poll Seerr requests -> Jellyfin favorites
+            if config.sync.features.seerr_to_jellyfin:
+                poller.poll_seerr_requests_to_jellyfin()
+            
             # Retry pending items
             sync_engine.retry_pending_items()
             

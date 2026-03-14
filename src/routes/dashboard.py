@@ -31,6 +31,7 @@ class DashboardStats(BaseModel):
     items_synced: int
     items_pending: int
     items_failed: int
+    seerr_request: Dict[str, Any]
 
 
 class ActivityItem(BaseModel):
@@ -103,6 +104,19 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
         SyncState.retry_count >= 3
     ).count()
     
+    # Seerr request specific stats
+    seerr_query = db.query(SyncState).filter(SyncState.source == 'seerr_request')
+    seerr_total = seerr_query.count()
+    seerr_synced = seerr_query.filter(SyncState.synced_to_jellyfin == True).count()
+    seerr_pending = seerr_query.filter(
+        SyncState.synced_to_jellyfin == False,
+        SyncState.retry_count < 3,
+    ).count()
+    seerr_failed = seerr_query.filter(
+        SyncState.synced_to_jellyfin == False,
+        SyncState.retry_count >= 3,
+    ).count()
+    
     return {
         "success": True,
         "data": {
@@ -113,6 +127,12 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
             "items_synced": items_synced,
             "items_pending": items_pending,
             "items_failed": items_failed,
+            "seerr_request": {
+                "total": seerr_total,
+                "synced": seerr_synced,
+                "pending": seerr_pending,
+                "failed": seerr_failed,
+            }
         }
     }
 

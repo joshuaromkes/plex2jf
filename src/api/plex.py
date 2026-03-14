@@ -2,6 +2,7 @@
 import json
 import logging
 import requests
+import xml.etree.ElementTree as ET
 from typing import List, Optional, Dict, Any
 
 from plexapi.myplex import MyPlexAccount
@@ -81,10 +82,94 @@ class PlexClient:
                     'title': user.title,
                     'uuid': user.uuid if hasattr(user, 'uuid') else None,
                 })
+
+            # Enrich UUIDs using Plex Home API when plexapi user objects do not expose it.
+            # This is critical because GraphQL user(id: $uuid) often requires a UUID-like ID.
+            home_users = self._get_home_users_api()
+            if home_users:
+                home_by_id = {
+                    str(u.get('id')): u
+                    for u in home_users
+                    if u.get('id') is not None
+                }
+                home_by_normalized_title = {
+                    str(u.get('title', '')).lower().replace(' ', ''): u
+                    for u in home_users
+                    if u.get('title')
+                }
+
+                enriched_count = 0
+                for managed_user in users:
+                    if managed_user.get('uuid'):
+                        continue
+
+                    managed_id = str(managed_user.get('id')) if managed_user.get('id') is not None else None
+                    normalized_title = str(managed_user.get('title', '')).lower().replace(' ', '')
+
+                    home_match = None
+                    if managed_id and managed_id in home_by_id:
+                        home_match = home_by_id[managed_id]
+                    elif normalized_title and normalized_title in home_by_normalized_title:
+                        home_match = home_by_normalized_title[normalized_title]
+
+                    if home_match and home_match.get('uuid'):
+                        managed_user['uuid'] = home_match.get('uuid')
+                        enriched_count += 1
+
+                logger.info(
+                    "Managed-user UUID enrichment: home_users=%d enriched=%d",
+                    len(home_users),
+                    enriched_count,
+                )
+
             logger.info(f"Found {len(users)} managed users")
         except PlexApiException as e:
             logger.error(f"Failed to get managed users: {e}")
         
+        return users
+
+    def _get_home_users_api(self) -> List[Dict[str, Any]]:
+        """Fetch managed/home users from Plex Home API and extract UUIDs when available."""
+        users: List[Dict[str, Any]] = []
+
+        headers = {
+            'X-Plex-Token': self.token,
+            'Accept': 'application/xml, application/json',
+        }
+
+        try:
+            response = requests.get("https://plex.tv/api/home/users", headers=headers, timeout=20)
+            logger.debug("Plex Home users API response status: %s", response.status_code)
+
+            if response.status_code != 200 or not response.text.strip():
+                return users
+
+            # Plex home endpoint is typically XML, but parse defensively.
+            content_type = response.headers.get('Content-Type', '').lower()
+            if 'json' in content_type:
+                data = response.json()
+                candidate_users = data.get('users', []) if isinstance(data, dict) else []
+                for entry in candidate_users:
+                    if not isinstance(entry, dict):
+                        continue
+                    users.append({
+                        'id': entry.get('id'),
+                        'title': entry.get('title') or entry.get('username') or entry.get('name'),
+                        'uuid': entry.get('uuid') or entry.get('guestIdentifier'),
+                    })
+                return users
+
+            root = ET.fromstring(response.text)
+            for user_elem in root.findall('.//User'):
+                users.append({
+                    'id': user_elem.attrib.get('id'),
+                    'title': user_elem.attrib.get('title') or user_elem.attrib.get('username') or user_elem.attrib.get('name'),
+                    'uuid': user_elem.attrib.get('uuid') or user_elem.attrib.get('guestIdentifier'),
+                })
+
+        except Exception as e:
+            logger.debug(f"Failed to enrich managed users from Plex Home API: {e}")
+
         return users
     
     def get_watchlist(self, username: Optional[str] = None, mapped_usernames: List[str] = None) -> List[PlexWatchlistItem]:
@@ -337,7 +422,7 @@ class PlexClient:
             # This ensures mapped users that are not returned by allFriendsV2 are still fetched.
             users_by_normalized: Dict[str, Dict[str, Any]] = {}
 
-            def _add_candidate(user_id: Optional[str], username: Optional[str]) -> None:
+            def _add_candidate(user_id: Optional[str], username: Optional[str], source: str = "unknown") -> None:
                 if not user_id or not username:
                     return
                 normalized = username.lower().replace(' ', '')
@@ -347,26 +432,68 @@ class PlexClient:
                     users_by_normalized[normalized] = {
                         'username': username,
                         'id_candidates': [user_id_str],
+                        'id_candidate_sources': {user_id_str: [source]},
                     }
+                    logger.debug(
+                        "Added user candidate: username=%s normalized=%s id=%s source=%s",
+                        username,
+                        normalized,
+                        user_id_str,
+                        source,
+                    )
                     return
 
                 # Keep the first discovered display name but extend candidate IDs.
                 existing = users_by_normalized[normalized]
                 existing_candidates = existing.setdefault('id_candidates', [])
+                source_map = existing.setdefault('id_candidate_sources', {})
+
                 if user_id_str not in existing_candidates:
                     existing_candidates.append(user_id_str)
+                    source_map[user_id_str] = [source]
+                    logger.debug(
+                        "Appended ID candidate: username=%s normalized=%s id=%s source=%s all_ids=%s",
+                        existing.get('username'),
+                        normalized,
+                        user_id_str,
+                        source,
+                        existing_candidates,
+                    )
+                else:
+                    source_map.setdefault(user_id_str, [])
+                    if source not in source_map[user_id_str]:
+                        source_map[user_id_str].append(source)
+                    logger.debug(
+                        "Observed duplicate ID candidate from additional source: username=%s normalized=%s id=%s source=%s all_sources_for_id=%s",
+                        existing.get('username'),
+                        normalized,
+                        user_id_str,
+                        source,
+                        source_map[user_id_str],
+                    )
 
             # Account owner candidate
-            _add_candidate(account_uuid, account_username)
+            _add_candidate(account_uuid, account_username, source='account_uuid')
             # Add numeric account ID as fallback if UUID resolution is wrong/absent.
             if str(account_user_id) != str(account_uuid):
-                _add_candidate(account_user_id, account_username)
+                _add_candidate(account_user_id, account_username, source='account_numeric_id')
 
             # Friend candidates
             if friends:
                 logger.info(f"Found {len(friends)} friends, collecting candidates")
                 for friend in friends:
-                    _add_candidate(friend.get('id'), friend.get('username'))
+                    _add_candidate(friend.get('id'), friend.get('username'), source='friends_graphql')
+
+                    if mapped_usernames:
+                        friend_username = friend.get('username')
+                        friend_normalized = (friend_username or '').lower().replace(' ', '')
+                        if friend_normalized in normalized_mapped:
+                            logger.info(
+                                "Mapped user found in friends_graphql: mapped=%s friend_username=%s friend_id=%s",
+                                normalized_mapped[friend_normalized],
+                                friend_username,
+                                friend.get('id'),
+                            )
 
             # Managed/home user candidates
             managed_users = self.get_managed_users()
@@ -376,22 +503,43 @@ class PlexClient:
                     managed_uuid = managed_user.get('uuid')
                     managed_numeric_id = managed_user.get('id')
                     managed_username = managed_user.get('title')
+
+                    if mapped_usernames:
+                        managed_normalized = (managed_username or '').lower().replace(' ', '')
+                        if managed_normalized in normalized_mapped:
+                            logger.info(
+                                "Mapped managed-user raw details: mapped=%s title=%s id=%s uuid=%s uuid_present=%s",
+                                normalized_mapped[managed_normalized],
+                                managed_username,
+                                managed_numeric_id,
+                                managed_uuid,
+                                bool(managed_uuid),
+                            )
+
                     # Try both UUID and numeric ID for managed users since some Plex
                     # responses expose IDs inconsistently for GraphQL lookup.
-                    _add_candidate(managed_uuid, managed_username)
+                    _add_candidate(managed_uuid, managed_username, source='managed_user_uuid')
                     if str(managed_numeric_id) != str(managed_uuid):
-                        _add_candidate(managed_numeric_id, managed_username)
+                        _add_candidate(managed_numeric_id, managed_username, source='managed_user_numeric_id')
 
             users_to_fetch = []
             if normalized_mapped:
                 for normalized_username, original_username in normalized_mapped.items():
                     candidate = users_by_normalized.get(normalized_username)
                     if candidate:
+                        candidate_sources = candidate.get('id_candidate_sources', {})
                         users_to_fetch.append(candidate)
                         logger.info(
                             "Adding mapped user: %s (matched to %s)",
                             candidate.get('username'),
                             original_username,
+                        )
+                        logger.info(
+                            "Mapped user candidate coverage: mapped=%s resolved_username=%s id_candidates=%s source_map=%s",
+                            original_username,
+                            candidate.get('username'),
+                            candidate.get('id_candidates', []),
+                            candidate_sources,
                         )
                     else:
                         logger.warning(
@@ -413,6 +561,35 @@ class PlexClient:
             for user in users_to_fetch:
                 username = user.get('username', 'Unknown')
                 id_candidates = user.get('id_candidates') or []
+                id_source_map = user.get('id_candidate_sources') or {}
+
+                candidate_order = [
+                    {
+                        'index': idx,
+                        'id': candidate_id,
+                        'id_type': 'numeric' if str(candidate_id).isdigit() else 'non_numeric',
+                        'sources': id_source_map.get(candidate_id, []),
+                    }
+                    for idx, candidate_id in enumerate(id_candidates, start=1)
+                ]
+
+                logger.info(
+                    "Resolved watchlist user candidates: username=%s candidate_count=%d candidates=%s",
+                    username,
+                    len(id_candidates),
+                    id_candidates,
+                )
+                logger.info(
+                    "Candidate source ordering for %s: %s",
+                    username,
+                    candidate_order,
+                )
+
+                if id_candidates and all(str(candidate_id).isdigit() for candidate_id in id_candidates):
+                    logger.warning(
+                        "All candidate IDs are numeric for %s; GraphQL user(id: $uuid) may require non-numeric UUID-like IDs",
+                        username,
+                    )
 
                 if not id_candidates:
                     logger.warning("No user ID candidates available for %s", username)
@@ -423,6 +600,12 @@ class PlexClient:
 
                 for user_id in id_candidates:
                     try:
+                        logger.info(
+                            "Attempting GraphQL watchlist fetch for username=%s with candidate_id=%s sources=%s",
+                            username,
+                            user_id,
+                            id_source_map.get(user_id, []),
+                        )
                         user_items = self._get_watchlist_for_user_graphql(username, user_id)
                         items.extend(user_items)
                         logger.info(f"Found {len(user_items)} items in watchlist for {username}")
@@ -611,6 +794,12 @@ class PlexClient:
                         "User not found" in error_messages
                         or "Data loader item not found: users uuid" in error_messages
                     ):
+                        logger.warning(
+                            "GraphQL returned user-not-found for username=%s with uuid/id=%s id_type=%s",
+                            username,
+                            user_id,
+                            'numeric' if str(user_id).isdigit() else 'non_numeric',
+                        )
                         raise PlexGraphQLUserNotFoundError(
                             f"GraphQL could not resolve user '{username}' with id '{user_id}'"
                         )
@@ -672,6 +861,14 @@ class PlexClient:
                 logger.warning(f"Failed to fetch watchlist for {username}: HTTP {response.status_code}")
                 logger.debug(f"Response: {response.text[:500]}")
                 
+        except PlexGraphQLUserNotFoundError as e:
+            logger.warning(
+                "Reraising PlexGraphQLUserNotFoundError for username=%s id=%s to allow outer candidate fallback",
+                username,
+                user_id,
+            )
+            logger.error(f"Error fetching watchlist for {username}: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error fetching watchlist for {username}: {e}")
         

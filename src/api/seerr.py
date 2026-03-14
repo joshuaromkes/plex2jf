@@ -1,10 +1,25 @@
 """Seerr API client."""
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Set
 
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+REQUEST_STATUS_MAP = {
+    1: 'PENDING',
+    2: 'APPROVED',
+    3: 'DECLINED',
+}
+
+MEDIA_STATUS_MAP = {
+    1: 'UNKNOWN',
+    2: 'PENDING',
+    3: 'PROCESSING',
+    4: 'PARTIALLY_AVAILABLE',
+    5: 'AVAILABLE',
+}
 
 
 class SeerrClient:
@@ -126,6 +141,113 @@ class SeerrClient:
                 break
 
         return all_requests
+
+    def _normalize_status_token(self, value: Any, status_map: Optional[Dict[int, str]] = None) -> Optional[str]:
+        """Normalize status values to uppercase symbolic tokens."""
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            token = value.strip().upper()
+            return token or None
+
+        coerced_int = self._coerce_int(value)
+        if coerced_int is None:
+            return None
+
+        if status_map and coerced_int in status_map:
+            return status_map[coerced_int]
+
+        return str(coerced_int)
+
+    def _extract_status_tokens(self, request: Dict[str, Any]) -> Set[str]:
+        """Extract request/media status tokens from a request payload."""
+        tokens: Set[str] = set()
+
+        request_status = self._normalize_status_token(
+            request.get('status'),
+            REQUEST_STATUS_MAP,
+        )
+        if request_status:
+            tokens.add(request_status)
+
+        request_status_text = self._normalize_status_token(
+            request.get('statusText') or request.get('requestStatus')
+        )
+        if request_status_text:
+            tokens.add(request_status_text)
+
+        media = request.get('media', {}) if isinstance(request, dict) else {}
+        media_status = self._normalize_status_token(
+            media.get('status'),
+            MEDIA_STATUS_MAP,
+        )
+        if media_status:
+            tokens.add(media_status)
+
+        media_status_text = self._normalize_status_token(media.get('statusText'))
+        if media_status_text:
+            tokens.add(media_status_text)
+
+        if media.get('isAvailable') is True:
+            tokens.add('AVAILABLE')
+
+        return tokens
+
+    def get_user_requests(
+        self,
+        user_id: int,
+        statuses: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get Seerr requests for a specific user with optional status filtering.
+
+        Args:
+            user_id: Seerr user ID
+            statuses: Optional status tokens to include. Example:
+                ['APPROVED', 'PROCESSING', 'AVAILABLE']
+
+        Returns:
+            List of matching request dictionaries
+        """
+        target_user_id = self._coerce_int(user_id)
+        if target_user_id is None:
+            return []
+
+        status_filter = {
+            str(status).strip().upper()
+            for status in (statuses or [])
+            if str(status).strip()
+        }
+
+        user_requests: List[Dict[str, Any]] = []
+
+        for request in self.get_requests():
+            requested_by = request.get('requestedBy', {}) if isinstance(request, dict) else {}
+            request_user_id = self._coerce_int(
+                requested_by.get('id')
+                or request.get('requestedById')
+                or request.get('requestedBy_userId')
+                or request.get('userId')
+            )
+
+            if request_user_id != target_user_id:
+                continue
+
+            if status_filter:
+                status_tokens = self._extract_status_tokens(request)
+                if not status_tokens.intersection(status_filter):
+                    continue
+
+            user_requests.append(request)
+
+        return user_requests
+
+    def get_completed_requests(self, user_id: int) -> List[Dict[str, Any]]:
+        """Get requests in completion-oriented states for a specific user."""
+        return self.get_user_requests(
+            user_id=user_id,
+            statuses=['APPROVED', 'PROCESSING', 'AVAILABLE', 'FILLED'],
+        )
 
     def find_existing_request(self, media_type: str, media_id: int, user_id: int) -> Optional[Dict[str, Any]]:
         """Find an existing Seerr request for a specific user and media item.

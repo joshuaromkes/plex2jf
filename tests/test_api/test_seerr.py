@@ -119,3 +119,114 @@ def test_find_existing_request_matches_media_and_user(seerr_client, monkeypatch)
 
     assert result is not None
     assert result["id"] == 20
+
+
+def test_get_user_requests(seerr_client, monkeypatch):
+    """Test getting requests for a specific user."""
+    requests = [
+        {
+            "id": 1,
+            "requestedBy": {"id": 10},
+            "status": 2,  # APPROVED
+            "media": {"status": 5, "isAvailable": True},
+        },
+        {
+            "id": 2,
+            "requestedBy": {"id": 10},
+            "status": 1,  # PENDING
+            "media": {"status": 2},
+        },
+        {
+            "id": 3,
+            "requestedBy": {"id": 20},
+            "status": 2,
+            "media": {"status": 5},
+        },
+    ]
+
+    monkeypatch.setattr(seerr_client, "get_requests", lambda: requests)
+
+    result = seerr_client.get_user_requests(user_id=10)
+    assert len(result) == 2
+    assert {r["id"] for r in result} == {1, 2}
+
+    result_with_status = seerr_client.get_user_requests(user_id=10, statuses=["APPROVED"])
+    assert len(result_with_status) == 1
+    assert result_with_status[0]["id"] == 1
+
+    result_with_multiple = seerr_client.get_user_requests(user_id=10, statuses=["APPROVED", "AVAILABLE"])
+    assert len(result_with_multiple) == 1
+    assert result_with_multiple[0]["id"] == 1
+
+
+def test_get_completed_requests(seerr_client, monkeypatch):
+    """Test getting completed requests for a user."""
+    requests = [
+        {
+            "id": 1,
+            "requestedBy": {"id": 10},
+            "status": 2,  # APPROVED
+            "media": {"status": 5, "isAvailable": True},
+        },
+        {
+            "id": 2,
+            "requestedBy": {"id": 10},
+            "status": 1,  # PENDING
+            "media": {"status": 2},
+        },
+        {
+            "id": 3,
+            "requestedBy": {"id": 10},
+            "status": 2,
+            "media": {"status": 4},  # PARTIALLY_AVAILABLE
+        },
+        {
+            "id": 4,
+            "requestedBy": {"id": 20},
+            "status": 2,
+            "media": {"status": 5},
+        },
+    ]
+
+    monkeypatch.setattr(seerr_client, "get_requests", lambda: requests)
+
+    result = seerr_client.get_completed_requests(user_id=10)
+    assert len(result) == 2
+    assert {r["id"] for r in result} == {1, 3}
+
+    result_user20 = seerr_client.get_completed_requests(user_id=20)
+    assert len(result_user20) == 1
+    assert result_user20[0]["id"] == 4
+
+
+def test_extract_status_tokens(seerr_client):
+    """Test status token extraction."""
+    request = {
+        "status": 2,
+        "requestStatus": "APPROVED",
+        "media": {
+            "status": 5,
+            "statusText": "AVAILABLE",
+            "isAvailable": True,
+        }
+    }
+    tokens = seerr_client._extract_status_tokens(request)
+    assert "APPROVED" in tokens
+    assert "AVAILABLE" in tokens
+    assert "5" in tokens  # numeric status also included
+    assert "2" in tokens
+
+    request2 = {
+        "status": "PENDING",
+        "media": {}
+    }
+    tokens2 = seerr_client._extract_status_tokens(request2)
+    assert "PENDING" in tokens2
+
+
+def test_normalize_status_token(seerr_client):
+    """Test status token normalization."""
+    assert seerr_client._normalize_status_token(2) == "2"
+    assert seerr_client._normalize_status_token("APPROVED") == "APPROVED"
+    assert seerr_client._normalize_status_token(None) is None
+    assert seerr_client._normalize_status_token(2, {2: "APPROVED"}) == "APPROVED"
