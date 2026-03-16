@@ -364,6 +364,50 @@ class SeerrClient:
                 return user
         return None
     
+    def search_media(
+        self,
+        query: str,
+        media_type: Optional[str] = None,
+        year: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search for media using Seerr's search API.
+        
+        Args:
+            query: Search query (title)
+            media_type: Optional filter 'movie' or 'tv'
+            year: Optional release year
+            
+        Returns:
+            List of search results
+        """
+        params = {'query': query}
+        if media_type:
+            params['mediaType'] = media_type
+        if year:
+            params['year'] = str(year)
+        
+        result = self._make_request('GET', '/search', params=params)
+        if not result and (media_type or year):
+            # Some Seerr deployments reject optional filters on /search.
+            # Retry with query-only to preserve loose-mapping behavior.
+            logger.info(
+                "Retrying Seerr search without optional filters for query=%s",
+                query,
+            )
+            result = self._make_request('GET', '/search', params={'query': query})
+
+        if not result:
+            return []
+        
+        # Seerr search returns a dict with 'results' array
+        if isinstance(result, dict) and 'results' in result:
+            return result['results']
+        elif isinstance(result, list):
+            return result
+        else:
+            logger.warning(f"Unexpected search response format: {type(result)}")
+            return []
+    
     def health_check(self) -> bool:
         """Check if Seerr connection is healthy."""
         result = self._make_request('GET', '/status')

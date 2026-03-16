@@ -90,12 +90,16 @@ class PollerService:
                 # Determine media type
                 media_type = 'movie' if item.type == 'movie' else 'tv'
                 
-                logger.info(f"Processing item: {item.title} ({media_type}) for user {item.username}, TMDB: {item.tmdb_id}")
-                
-                # Skip if no TMDB ID
-                if not item.tmdb_id:
-                    logger.warning(f"No TMDB ID for {item.title}, skipping")
-                    continue
+                logger.info(
+                    "Processing item: %s (%s) for user %s, TMDB=%s IMDB=%s TVDB=%s year=%s",
+                    item.title,
+                    media_type,
+                    item.username,
+                    item.tmdb_id,
+                    item.imdb_id,
+                    item.tvdb_id,
+                    getattr(item, 'year', None),
+                )
                 
                 # Sync to Seerr if enabled
                 if seerr_enabled:
@@ -105,6 +109,9 @@ class PollerService:
                         item.tmdb_id,
                         media_type,
                         item.title,
+                        year=getattr(item, 'year', None),
+                        imdb_id=item.imdb_id,
+                        tvdb_id=item.tvdb_id,
                     )
                     if success:
                         synced_count += 1

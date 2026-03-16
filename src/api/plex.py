@@ -28,6 +28,13 @@ class PlexWatchlistItem:
         self.user_id = user_id
         self.title = plex_item.title
         self.type = plex_item.type  # 'movie' or 'show'
+        self.year: Optional[int] = None
+
+        if hasattr(plex_item, 'year') and getattr(plex_item, 'year') is not None:
+            try:
+                self.year = int(getattr(plex_item, 'year'))
+            except (TypeError, ValueError):
+                self.year = None
         
         # Extract external IDs from GUIDs
         self.tmdb_id: Optional[str] = None
@@ -357,6 +364,7 @@ class PlexClient:
                     item_obj = type('PlexItem', (), {
                         'title': title,
                         'type': normalized_type,
+                        'year': node.get('year'),
                         'guids': [guid] if guid else []
                     })()
                     
@@ -735,6 +743,7 @@ class PlexClient:
                 id
                 title
                 type
+                year
                 key
               }
               pageInfo {
@@ -836,6 +845,7 @@ class PlexClient:
                     item_obj = type('PlexItem', (), {
                         'title': title,
                         'type': normalized_type,
+                        'year': node.get('year'),
                         'guids': external_ids.get('guids', [])
                     })()
                     
@@ -845,6 +855,8 @@ class PlexClient:
                     watchlist_item.tmdb_id = external_ids.get('tmdb_id')
                     watchlist_item.imdb_id = external_ids.get('imdb_id')
                     watchlist_item.tvdb_id = external_ids.get('tvdb_id')
+                    if watchlist_item.year is None and external_ids.get('year') is not None:
+                        watchlist_item.year = external_ids.get('year')
                     
                     items.append(watchlist_item)
                 
@@ -890,7 +902,8 @@ class PlexClient:
             'guids': [],
             'tmdb_id': None,
             'imdb_id': None,
-            'tvdb_id': None
+            'tvdb_id': None,
+            'year': None,
         }
         
         if not key:
@@ -932,6 +945,12 @@ class PlexClient:
                     if metadata and isinstance(metadata, list) and len(metadata) > 0:
                         item = metadata[0]
                         logger.debug(f"Processing metadata for item: {item.get('title', 'Unknown')}")
+
+                        if item.get('year') is not None:
+                            try:
+                                result['year'] = int(item.get('year'))
+                            except (TypeError, ValueError):
+                                result['year'] = None
                         
                         # Extract GUIDs
                         if 'Guid' in item and isinstance(item['Guid'], list):
@@ -1074,6 +1093,7 @@ class PlexClient:
                                     item_obj = type('PlexItem', (), {
                                         'title': item.get('title', 'Unknown'),
                                         'type': 'movie' if item.get('type') == 'movie' else 'show',
+                                        'year': item.get('year'),
                                         'guids': guids
                                     })()
                                     

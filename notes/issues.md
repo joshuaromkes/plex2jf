@@ -1,35 +1,46 @@
 # Issues and Feature Requests
 
-## Status Snapshot
-
-Updated after the latest Plex GraphQL/Tory retest cycle.
 
 ### Current Priority
-1. Improve request outcome visibility (high sync count vs true successful requests).
-2. Add loose content mapping to improve hit rate for unmatched Plex items.
+1. Fix frontend Seerr Request Sync stats showing `0` despite active sync history.
+2. Validate dashboard pending/request counters against database-backed sync state.
+3. Reduce temporary high-volume diagnostics after a stability window.
 
 ---
 
 ## Bugs
 
+## When syncing, UI freezes until sync is complete
 
-## Feature Requests
+## UI Issues, Bugfix & Feature Request Combo
+1. Improve request outcome visibility (high sync count vs true successful requests).
+  A. See todo.md for improved User Mapping UI inquiries as both a bugfix AND a FR
+  B. Seerr Stats column currently shows 0 for all stats: 45 total /45 synced /0 pending /0 failed|0 total /0 synced /0 pending /0 failed
+2. Dashboard: Pending Items returns 0 items: Pending Items 0
+3. Dashboard: Seerr Request Sync returns 0 items for all UI elements: 
+    Total Requests 0 Seerr requests tracked
+    Synced to Jellyfin 0 Favorited in Jellyfin
+    Pending 0 Waiting for library item
+    Failed 0 Exceeded retry limit
+
+
+
 
 ### Feature: Loose Content Mapping (Improved Match Hit Rate)
-- **Status**: ⏳ Open
+- **Status**: ✅ Completed (2026-03-16)
 - **Priority**: High
 - **Problem**:
   - Not all Plex watchlist items map cleanly to Seerr requests via current ID path.
   - See logs in plex2jf.log referencing no TMDBID
 - **Goal**:
   - Add a smart loose-matching fallback to improve request hit rate when strict IDs fail.
-- **Candidate Approach**:
-  1. Keep strict ID-first flow (`tmdb`, `imdb`, `tvdb`) as primary.
-  2. If strict lookup fails, fallback to title/year/type search with confidence scoring.
-  3. Record why fallback matched (or failed) in logs for auditability.
-  4. Add guardrails to prevent false-positive requests.
-- **Research Note**:
-  - May require additional Plex metadata/query coverage for better disambiguation.
+- **Implemented Outcome**:
+  1. Kept strict ID-first flow (`tmdb`, `imdb`, `tvdb`) as primary path.
+  2. Added fallback title/year/type search with confidence scoring and ambiguity guardrails.
+  3. Added unresolved-item persistence with synthetic IDs to avoid null `external_id` writes and preserve retries.
+  4. Added Seerr `/search` retry behavior (query-only) when optional filters are rejected.
+  5. Added regression tests for fallback resolution and unresolved-item handling.
+  6. Rebuild verification logged successful completion: `Plex watchlist poll complete. Synced 1100 items.`
 
 ### Suggestion: Add Test Connection Button
 - **Status**: 💡 Backlog
@@ -54,3 +65,4 @@ Updated after the latest Plex GraphQL/Tory retest cycle.
 ## Technical Debt / Follow-up
 
 - Optional cleanup: downgrade temporary high-volume diagnostics once stable behavior is confirmed in longer-running production use.
+- Optional follow-up: continue monitoring loose-match precision/recall and tune scoring thresholds if false positives appear.

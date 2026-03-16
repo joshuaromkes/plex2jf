@@ -22,6 +22,7 @@
 ### Feature Requests
 - Suggestion: Ensure Only New Items Sync from Watchlist and Are Requested in Seerr
 - Feature Request: Dashboard Sync Stats Breakdown
+- Feature: Loose Content Mapping (Improved Match Hit Rate) - Implemented strict-ID-first with title/year/type fallback and confidence guardrails.
 
 ## From notes/todo.md
 
@@ -46,6 +47,13 @@
 - Expand mapped-user discovery to include account owner + friends + managed users
 - Add Seerr existing-request lookup to avoid duplicate watchlist requests
 - Add GraphQL user-id candidate fallback for user_mapping.py
+
+**Loose Mapping + Rebuild Stabilization (Completed 2026-03-16)**
+- Implement loose TMDB resolution fallback in `SyncEngine` via Seerr search with scoring and ambiguity guardrails.
+- Persist unresolved items with synthetic external IDs (`unresolved:<type>:<title>:<year>`) to avoid null `external_id` DB writes and keep retries intact.
+- Add Seerr search compatibility fallback: retry query-only when optional `/search` filters are rejected (HTTP 400).
+- Add/extend regression tests for loose mapping resolution, unresolved-item handling, and Seerr search fallback behavior.
+- Verify rebuild completion in logs: `Plex watchlist poll complete. Synced 1100 items.`
 
 **Seerr→Jellyfin Sync Implementation (Completed)**
 - Research Seerr API for fetching completed/approved/available requests per user (statuses: APPROVED, PROCESSING, AVAILABLE, FILLED)

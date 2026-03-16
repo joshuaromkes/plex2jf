@@ -230,3 +230,77 @@ def test_normalize_status_token(seerr_client):
     assert seerr_client._normalize_status_token("APPROVED") == "APPROVED"
     assert seerr_client._normalize_status_token(None) is None
     assert seerr_client._normalize_status_token(2, {2: "APPROVED"}) == "APPROVED"
+
+
+def test_search_media(seerr_client, monkeypatch):
+    """Test Seerr media search helper."""
+    captured = {}
+
+    def fake_make_request(method, endpoint, **kwargs):
+        captured["method"] = method
+        captured["endpoint"] = endpoint
+        captured["params"] = kwargs.get("params")
+        return {
+            "results": [
+                {"id": 101, "mediaType": "movie", "title": "Fight Club", "year": 1999},
+            ]
+        }
+
+    monkeypatch.setattr(seerr_client, "_make_request", fake_make_request)
+
+    result = seerr_client.search_media(query="Fight Club", media_type="movie", year=1999)
+
+    assert captured["method"] == "GET"
+    assert captured["endpoint"] == "/search"
+    assert captured["params"] == {
+        "query": "Fight Club",
+        "mediaType": "movie",
+        "year": "1999",
+    }
+    assert len(result) == 1
+    assert result[0]["id"] == 101
+
+
+def test_search_media_handles_list_response(seerr_client, monkeypatch):
+    """Test media search helper with list-shaped API responses."""
+    monkeypatch.setattr(
+        seerr_client,
+        "_make_request",
+        lambda method, endpoint, **kwargs: [
+            {"id": 202, "mediaType": "tv", "title": "Good Witch", "year": 2015}
+        ],
+    )
+
+    result = seerr_client.search_media(query="Good Witch", media_type="tv")
+
+    assert len(result) == 1
+    assert result[0]["id"] == 202
+
+
+def test_search_media_retries_without_optional_filters(seerr_client, monkeypatch):
+    """Retry query-only when Seerr rejects optional /search filters."""
+    calls = []
+
+    def fake_make_request(method, endpoint, **kwargs):
+        params = kwargs.get("params") or {}
+        calls.append((method, endpoint, params))
+
+        # Simulate a deployment that rejects mediaType/year on /search.
+        if "mediaType" in params or "year" in params:
+            return None
+
+        return {
+            "results": [
+                {"id": 303, "mediaType": "movie", "title": "Snow Bear"},
+            ]
+        }
+
+    monkeypatch.setattr(seerr_client, "_make_request", fake_make_request)
+
+    result = seerr_client.search_media(query="Snow Bear", media_type="movie", year=2020)
+
+    assert len(calls) == 2
+    assert calls[0][2] == {"query": "Snow Bear", "mediaType": "movie", "year": "2020"}
+    assert calls[1][2] == {"query": "Snow Bear"}
+    assert len(result) == 1
+    assert result[0]["id"] == 303

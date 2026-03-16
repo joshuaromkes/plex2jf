@@ -31,6 +31,7 @@ class DummySeerrClient:
     def __init__(self):
         self.find_existing_request_result = None
         self.create_request_result = None
+        self.search_media_result = []
         self.get_user_requests_result = []
         self.calls = []
 
@@ -41,6 +42,10 @@ class DummySeerrClient:
     def create_request(self, media_type, media_id, user_id):
         self.calls.append(("create_request", media_type, media_id, user_id))
         return self.create_request_result
+
+    def search_media(self, query, media_type=None, year=None):
+        self.calls.append(("search_media", query, media_type, year))
+        return self.search_media_result
 
     def get_user_requests(self, user_id, statuses=None):
         self.calls.append(("get_user_requests", user_id, statuses))
@@ -131,6 +136,140 @@ def test_sync_plex_watchlist_to_seerr_creates_request_when_not_existing():
     create_calls = [c for c in seerr.calls if c[0] == "create_request"]
     assert len(find_calls) == 1
     assert len(create_calls) == 1
+
+    db.close()
+
+
+def test_sync_plex_watchlist_to_seerr_loose_mapping_resolves_tmdb_from_search():
+    """Should resolve missing TMDB via loose Seerr search and create request."""
+    db, seerr, jellyfin, sync_engine = _build_sync_engine()
+
+    mapping = UserMapping(
+        plex_username="jromkes",
+        jellyfin_user_id="jf-1",
+        seerr_user_id="5",
+    )
+    db.add(mapping)
+    db.commit()
+
+    seerr.find_existing_request_result = None
+    seerr.create_request_result = {"id": 321}
+    seerr.search_media_result = [
+        {
+            "id": 91001,
+            "mediaType": "movie",
+            "title": "Good Witch Halloween",
+            "year": 2015,
+        },
+        {
+            "id": 91002,
+            "mediaType": "movie",
+            "title": "Good Witch",
+            "year": 2018,
+        },
+    ]
+
+    success = sync_engine.sync_plex_watchlist_to_seerr(
+        plex_username="jromkes",
+        tmdb_id=None,
+        media_type="movie",
+        title="Good Witch Halloween",
+        year=2015,
+    )
+
+    assert success is True
+
+    search_calls = [c for c in seerr.calls if c[0] == "search_media"]
+    create_calls = [c for c in seerr.calls if c[0] == "create_request"]
+    assert len(search_calls) == 1
+    assert len(create_calls) == 1
+    assert create_calls[0][2] == 91001
+
+    state = db.query(SyncState).filter(
+        SyncState.user_mapping_id == mapping.id,
+        SyncState.source == "plex_watchlist",
+    ).first()
+    assert state is not None
+    assert state.external_id == "91001"
+    assert state.synced_to_seerr is True
+
+    db.close()
+
+
+def test_sync_plex_watchlist_to_seerr_loose_mapping_unresolved_creates_pending_state():
+    """Should store unresolved state when loose mapping cannot confidently resolve."""
+    db, seerr, jellyfin, sync_engine = _build_sync_engine()
+
+    mapping = UserMapping(
+        plex_username="jromkes",
+        jellyfin_user_id="jf-1",
+        seerr_user_id="5",
+    )
+    db.add(mapping)
+    db.commit()
+
+    seerr.search_media_result = [
+        {
+            "id": 1001,
+            "mediaType": "movie",
+            "title": "Completely Different Title",
+            "year": 1992,
+        }
+    ]
+
+    success = sync_engine.sync_plex_watchlist_to_seerr(
+        plex_username="jromkes",
+        tmdb_id=None,
+        media_type="movie",
+        title="Snow Bear",
+        year=2020,
+    )
+
+    assert success is False
+
+    state = db.query(SyncState).filter(
+        SyncState.user_mapping_id == mapping.id,
+        SyncState.source == "plex_watchlist",
+    ).first()
+    assert state is not None
+    assert state.external_id.startswith("unresolved:movie:")
+    assert state.last_error is not None
+    assert "TMDB unresolved" in state.last_error
+
+    db.close()
+
+
+def test_sync_plex_watchlist_to_jellyfin_unresolved_tmdb_does_not_insert_null_external_id():
+    """When TMDB cannot be resolved, Jellyfin path should not insert NULL external_id."""
+    db, seerr, jellyfin, sync_engine = _build_sync_engine()
+
+    mapping = UserMapping(
+        plex_username="jromkes",
+        jellyfin_user_id="jf-1",
+        seerr_user_id="5",
+    )
+    db.add(mapping)
+    db.commit()
+
+    seerr.search_media_result = []
+
+    success = sync_engine.sync_plex_watchlist_to_jellyfin(
+        plex_username="jromkes",
+        tmdb_id=None,
+        media_type="movie",
+        title="Snow Bear",
+        imdb_id="tt13959486",
+    )
+
+    assert success is False
+
+    state = db.query(SyncState).filter(
+        SyncState.user_mapping_id == mapping.id,
+        SyncState.source == "plex_watchlist",
+    ).first()
+    assert state is not None
+    assert state.external_id is not None
+    assert state.external_id.startswith("unresolved:movie:")
 
     db.close()
 

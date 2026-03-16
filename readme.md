@@ -2,11 +2,28 @@
 
 A Python-based Docker service that synchronizes media requests and favorites between Plex, Jellyfin, and Seerr (formerly Jellyseerr).
 
+
+## AI Disclosure
+Before I continue, I would like to disclose the use of AI in the creation of this project.
+I am a system administrator NOT a programmer. Though I have extensive experience with building systems, managing them etc.
+I do not have professional experience in development, nor do I plan on aqcuiring same.
+
+This project comes with no warranty or gaurantee. If you think you can improve this project in anyway please feel free to touch base.
+Otherwise, I will do my absloute best in terms of maintaining and keeping this project running with the very limited dev experience I have. 
+
+## Reason For Project
+I am a big fan of plex, and likewise with jellyfin. When migrating my users over from plex to jellyfin I noticed a few limitations
+1. Watchlist: there is no surefire way to move their watchlist over from plex to jellyfin
+2. Favourites: when someone requests something in seerr, there is no (current) - last time i checked, functionality to auto-favourite these requests into jellyfin
+
+
+
 ## Features
 
-- **Seerr → Jellyfin**: When a user requests media in Seerr, automatically favorite it in Jellyfin
 - **Plex Watchlist → Seerr**: When a user adds to Plex watchlist, automatically create a Seerr request
-- **Plex Watchlist → Jellyfin**: When a user adds to Plex watchlist, automatically favorite it in Jellyfin
+- **Seerr → Jellyfin**: When a user requests media in Seerr, Plex2Seerr will favorite it in Jellyfin
+- **Loose Mapping Fallback**: If strict IDs are missing/unusable, Plex items can be resolved via title/year/type search with confidence guardrails
+- **Polling Interval**: Both watchlist and favourites are automatically kept in sync with a set polling interval (default 300s)
 
 ## Architecture
 
@@ -16,8 +33,8 @@ A Python-based Docker service that synchronizes media requests and favorites bet
 │   Server    │     │   Server    │     │   Server    │
 └──────┬──────┘     └──────┬──────┘     └──────┬──────┘
        │                   │                   │
-       │  Watchlist        │  Favorites        │  Webhooks
-       │  (Poll)           │  (API)            │  (Push)
+       │  Watchlist        │  Favorites        │  Completed Requests
+       │  (Poll)           │  (API)            │  (API)
        │                   │                   │
        └───────────────────┼───────────────────┘
                            │
@@ -26,6 +43,7 @@ A Python-based Docker service that synchronizes media requests and favorites bet
                     │   (Docker)  │
                     └─────────────┘
 ```
+
 
 ## Quick Start
 
@@ -53,47 +71,19 @@ A Python-based Docker service that synchronizes media requests and favorites bet
 
 ### 2. Create Configuration
 
-Copy the example config and fill in your values:
+Servers - Add Server
+- select your service type
+- Add name (optional)
+- Input URL (http://localhost:port)
+- Input Token
 
-```bash
-cp config.example.yaml config.yaml
-```
+Click "Add Server"
 
-Edit `config.yaml`:
+### 3. User Mapping
 
-```yaml
-plex:
-  url: "https://plex.tv"
-  token: "YOUR_ADMIN_PLEX_TOKEN"
-
-jellyfin:
-  url: "http://jellyfin:8096"
-  api_key: "YOUR_JELLYFIN_API_KEY"
-
-seerr:
-  url: "http://seerr:5055"
-  api_key: "YOUR_SEERR_API_KEY"
-
-user_mappings:
-  - plex_username: "john"
-    jellyfin_user_id: "abc123"
-    seerr_user_id: "1"
-```
-
-### 3. Run with Docker Compose
-
-```bash
-docker-compose up -d
-```
-
-### 4. Configure Seerr Webhook
-
-In Seerr:
-1. Go to Settings → Notifications → Webhook
-2. Set URL: `http://plex2jf:8000/webhooks/seerr`
-3. Enable events: `REQUEST_PENDING`, `REQUEST_APPROVED`
-
-## Configuration
+1. User Mapping - Refresh Users
+2. Add Mapping
+3. Choose your plex user, Jellyfin User, Seerr User - Hit save
 
 ### Environment Variables
 
@@ -185,9 +175,15 @@ The UI follows an "Arr-style" dark theme and is fully responsive, enhancing usab
 ### Plex Watchlist → Seerr/Jellyfin
 
 1. plex2jf polls Plex watchlists every 5 minutes
-2. New items are extracted with TMDB IDs
-3. Items are synced to Seerr (as requests) and/or Jellyfin (as favorites)
-4. Sync state is tracked in SQLite database
+2. New items are extracted with external IDs (`tmdb`/`imdb`/`tvdb`) when available
+3. Strict ID-first sync is attempted for Seerr requests and/or Jellyfin favorites
+4. If strict ID resolution fails, fallback search uses title/year/type with scoring and ambiguity guardrails
+5. Unresolved items are tracked in SQLite with retry-safe state so they can be retried later without DB integrity issues
+
+### Recent Stability Notes
+
+- Added compatibility fallback for Seerr `/search` behavior: when optional filters are rejected, plex2jf retries with query-only search.
+- Rebuild verification (2026-03-16) completed successfully with log marker: `Plex watchlist poll complete. Synced 1100 items.`
 
 ## Development
 
@@ -249,11 +245,6 @@ curl http://localhost:8000/stats
 - Item hasn't been downloaded yet
 - Will be retried automatically
 - Check logs for pending items
-
-**Webhook not working**
-- Verify Seerr webhook URL is correct
-- Check plex2jf is on the same network as Seerr
-- Check firewall rules
 
 **Plex watchlist not syncing**
 - Verify admin token has access to managed users
