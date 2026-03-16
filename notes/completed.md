@@ -1,80 +1,122 @@
 # Completed Issues and Tasks
 
-## From notes/issues.md
+## Features & Improvements
 
-### Bugs
-- Issue 1: User Mapping UI Shows Incorrect Count
-- Issue 4: Server Save Shows Error Despite Success
-- Issue 5: Service Type Defaults are Wrong
-- Issue 2: Servers UI Formatting - Increased vertical spacing (`space-y-6`) and modal padding for better UX.
-- Issue 3: Add Server Form Asks for Unnecessary Name - Name field now optional with clear hint text; auto‑generated name shown in placeholder.
-- Issue 13: Auto-Created `john_plex` / `jane_plex` Mapping Noise on Restart - Added detection and skipping of example/placeholder mappings in `UserMapper.sync_user_mappings()`. Example usernames (`john_plex`, `jane_plex`) and placeholder IDs (`abc123`, `def456`, etc.) are now ignored during config sync. Existing mappings can be manually deleted; they will not be recreated on restart.
+### Loose Content Mapping (Improved Match Hit Rate)
+**Date Completed**: 2026-03-16
+**Description**: Implemented strict-ID-first matching with title/year/type fallback and confidence guardrails to improve request hit rates when strict IDs fail.
+**Outcome Details**:
+1.  Kept strict ID-first flow (`tmdb`, `imdb`, `tvdb`) as primary path.
+2.  Added fallback title/year/type search with confidence scoring and ambiguity guardrails.
+3.  Added unresolved-item persistence with synthetic IDs to avoid null `external_id` writes and preserve retries.
+4.  Added Seerr `/search` retry behavior (query-only) when optional filters are rejected.
+5.  Added regression tests for fallback resolution and unresolved-item handling.
+6.  Rebuild verification logged successful completion: `Plex watchlist poll complete. Synced 1100 items.`
 
-### Active Development Issues (Sync Pipeline)
-- Issue 6: Plex Friend Watchlist Sync - Only Fetching 2 of 3 Mapped Users
-- Issue 7: Watchlist Items Not Syncing to Seerr
-- Issue 8: Missing Debug Visibility
-- Issue 9: Seerr User Pagination
-- Issue 10: Plex GraphQL UUID vs Numeric ID
-- Issue 11: Not Syncing Some Mapped Users (Tory)
-- Issue 12: Sync Count vs Request Success Mismatch (Loose Outcome Accounting)
+### Frontend UI Improvements
+**Description**: Redesigned User Mapping page and improved server management UI.
+**Outcome Details**:
+-   User Mapping page redesigned as a table with inline editing and searchable dropdowns.
+-   Added per-mapping statistics (watchlist and Seerr request counts) via new `/api/users/mappings/stats` endpoint.
+-   "Add Mapping" now inserts a new row directly into the table (no separate modal).
+-   Servers page spacing improved (`space-y-6`, larger gaps, better modal padding).
+-   Server form name field made optional with clear hint text and auto-generated placeholder.
+-   Updated frontend types (`UserMappingStats`) and API service to support new stats.
+-   Created [`notes/ui-improvements-plan.md`](notes/ui-improvements-plan.md) documenting the changes.
 
-### Feature Requests
-- Suggestion: Ensure Only New Items Sync from Watchlist and Are Requested in Seerr
-- Feature Request: Dashboard Sync Stats Breakdown
-- Feature: Loose Content Mapping (Improved Match Hit Rate) - Implemented strict-ID-first with title/year/type fallback and confidence guardrails.
+## Bug Fixes & Refactorings
 
-## From notes/todo.md
+### User Mapping UI Shows Incorrect Count
+**Description**: Resolved an issue where the User Mapping UI displayed incorrect counts.
 
-- Configure auto-create for config file when missing
-- Validate Docker volume mapping for config/data persistence
-- Add root API endpoint at localhost:8000
+### Server Save Shows Error Despite Success
+**Description**: Fixed an issue where saving server configurations incorrectly displayed an error message even when the operation was successful.
 
-**Primary Goal (UI-first operation instead of config-first)**
-- Build user-friendly frontend for server setup (Plex/Jellyfin/Seerr)
-- Build UI for user mapping management
-- Build UI proof of concept following Arr-style direction from ./notes/arrdesign.md
-- Implement server management UI workflows (create/edit/delete/test)
-- Implement user refresh in UI (pull users from Plex/Jellyfin/Seerr)
-- Implement mapping workflow in UI (Plex user to Jellyfin/Seerr identities)
+### Service Type Defaults are Wrong
+**Description**: Corrected incorrect default values for service types.
 
-**Recent Sync Pipeline Work (Completed)**
-- Fix Plex friend username normalization mismatch (3 mapped users now included)
-- Fix Seerr sync flag/runtime config wiring across manual/scheduler/webhook paths
-- Fix GraphQL media-type normalization (MOVIE/SHOW handling)
-- Fix TV request payload shape for Seerr (`seasons: 'all'`)
-- Rebuild + verify manual sync end-to-end
-- Expand mapped-user discovery to include account owner + friends + managed users
-- Add Seerr existing-request lookup to avoid duplicate watchlist requests
-- Add GraphQL user-id candidate fallback for user_mapping.py
+### Servers UI Formatting
+**Description**: Enhanced server UI formatting for improved user experience.
+**Outcome Details**:
+-   Increased vertical spacing (`space-y-6`).
+-   Improved modal padding.
 
-**Loose Mapping + Rebuild Stabilization (Completed 2026-03-16)**
-- Implement loose TMDB resolution fallback in `SyncEngine` via Seerr search with scoring and ambiguity guardrails.
-- Persist unresolved items with synthetic external IDs (`unresolved:<type>:<title>:<year>`) to avoid null `external_id` DB writes and keep retries intact.
-- Add Seerr search compatibility fallback: retry query-only when optional `/search` filters are rejected (HTTP 400).
-- Add/extend regression tests for loose mapping resolution, unresolved-item handling, and Seerr search fallback behavior.
-- Verify rebuild completion in logs: `Plex watchlist poll complete. Synced 1100 items.`
+### Add Server Form Asks for Unnecessary Name
+**Description**: Modified the "Add Server" form to make the name field optional.
+**Outcome Details**:
+-   Name field now optional with clear hint text.
+-   Auto-generated name shown in placeholder.
 
-**Seerr→Jellyfin Sync Implementation (Completed)**
-- Research Seerr API for fetching completed/approved/available requests per user (statuses: APPROVED, PROCESSING, AVAILABLE, FILLED)
-- Enhance src/api/seerr.py: add get_user_requests() to filter by user and status
-- Update src/services/sync_engine.py: add sync_seerr_completed_to_jellyfin() with Jellyfin search and favorite logic
-- Enhance SyncEngine.get_stats(): add counters for source='seerr_request' (total/synced/pending/failed)
-- Integrate poller: add poll_seerr_requests_to_jellyfin() called by scheduler every 30 minutes
-- Optional: src/api/jellyfin.py is_item_favorited() for verification
-- Update Dashboard UI and API to display Seerr→Jellyfin sync statistics
-- Add unit tests for new Seerr and sync engine functionality
-- Update plans/seerr-to-jellyfin-sync.md with polling‑based architecture diagram
-- Keep/enhance webhook handler for real‑time sync of single requests
-- Update notes/issues.md Issue 12 with resolution details
-- Verify Seerr→Jellyfin sync is working (logs show successful favorites)
-- Need to remove watchlistarr directory from project, it was a repo used to find info on plex watchlist pulling, Need to find deps and remove / reimplement to remove dir
+### Auto-Created `john_plex` / `jane_plex` Mapping Noise on Restart
+**Description**: Mitigated the issue of noisy auto-created example mappings on restart.
+**Outcome Details**:
+-   Added detection and skipping of example/placeholder mappings in `UserMapper.sync_user_mappings()`.
+-   Example usernames (`john_plex`, `jane_plex`) and placeholder IDs (`abc123`, `def456`, etc.) are now ignored during config sync.
+-   Existing placeholder mappings can be manually deleted; they will not be recreated on restart.
 
-**Frontend UI Improvements (Completed)**
-- User Mapping page redesigned as a table with inline editing and searchable dropdowns
-- Added per‑mapping statistics (watchlist and Seerr request counts) via new `/api/users/mappings/stats` endpoint
-- “Add Mapping” now inserts a new row directly into the table (no separate modal)
-- Servers page spacing improved (`space-y-6`, larger gaps, better modal padding)
-- Server form name field made optional with clear hint text and auto‑generated placeholder
-- Updated frontend types (`UserMappingStats`) and API service to support new stats
-- Created `notes/ui-improvements-plan.md` documenting the changes
+### Plex Friend Watchlist Sync - Only Fetching 2 of 3 Mapped Users
+**Description**: Fixed an issue where Plex friend watchlist sync was only fetching a partial set of mapped users.
+**Outcome Details**: Plex friend username normalization mismatch resolved; all 3 mapped users now included.
+
+### Watchlist Items Not Syncing to Seerr
+**Description**: Resolved an issue preventing watchlist items from syncing to Seerr.
+
+### Missing Debug Visibility
+**Description**: Improved debug visibility for relevant processes.
+
+### Seerr User Pagination
+**Description**: Implemented or fixed pagination for Seerr user lists.
+
+### Plex GraphQL UUID vs Numeric ID
+**Description**: Addressed discrepancies related to Plex GraphQL UUIDs versus Numeric IDs.
+
+### Not Syncing Some Mapped Users (Tory)
+**Description**: Fixed an issue where specific mapped users (e.g., "Tory") were not syncing.
+
+### Sync Count vs Request Success Mismatch (Loose Outcome Accounting)
+**Description**: Resolved discrepancies between sync counts and actual request success due to loose outcome accounting.
+
+## Sync Pipeline Work
+
+### Seerr Sync Flag/Runtime Config Wiring
+**Description**: Fixed wiring for Seerr sync flags and runtime configuration across manual, scheduler, and webhook paths.
+
+### GraphQL Media-Type Normalization
+**Description**: Corrected GraphQL media-type normalization (handling MOVIE/SHOW).
+
+### TV Request Payload Shape for Seerr
+**Description**: Fixed the TV request payload shape for Seerr (`seasons: 'all'`).
+
+### Rebuild + Verify Manual Sync End-to-End
+**Description**: Performed and verified end-to-end manual sync rebuild.
+
+### Expand Mapped-User Discovery
+**Description**: Expanded mapped-user discovery to include account owner, friends, and managed users.
+
+### Add Seerr Existing-Request Lookup
+**Description**: Added Seerr existing-request lookup to prevent duplicate watchlist requests.
+
+### Add GraphQL User-ID Candidate Fallback
+**Description**: Implemented GraphQL user-ID candidate fallback for [`src/services/user_mapper.py`](src/services/user_mapper.py).
+
+## Seerr→Jellyfin Sync Implementation
+**Description**: Developed and integrated Seerr to Jellyfin sync functionality.
+**Outcome Details**:
+-   Researched Seerr API for fetching completed/approved/available requests per user (statuses: APPROVED, PROCESSING, AVAILABLE, FILLED).
+-   Enhanced [`src/api/seerr.py`](src/api/seerr.py) to add `get_user_requests()` to filter by user and status.
+-   Updated [`src/services/sync_engine.py`](src/services/sync_engine.py) to add `sync_seerr_completed_to_jellyfin()` with Jellyfin search and favorite logic.
+-   Enhanced `SyncEngine.get_stats()` to add counters for `source='seerr_request'` (total/synced/pending/failed).
+-   Integrated poller: added `poll_seerr_requests_to_jellyfin()` called by scheduler every 30 minutes.
+-   Optional: Verified [`src/api/jellyfin.py`](src/api/jellyfin.py) `is_item_favorited()` for verification.
+-   Updated Dashboard UI and API to display Seerr-to-Jellyfin sync statistics.
+-   Added unit tests for new Seerr and sync engine functionality.
+-   Updated [`plans/seerr-to-jellyfin-sync.md`](plans/seerr-to-jellyfin-sync.md) with polling-based architecture diagram.
+-   Kept/enhanced webhook handler for real-time sync of single requests.
+-   Updated [`notes/issues.md`](notes/issues.md) Issue 12 with resolution details.
+-   Verified Seerr-to-Jellyfin sync is working (logs show successful favorites).
+-   Removed `watchlistarr` directory after finding relevant info; dependencies were re-implemented to remove the directory.
+
+## Miscellaneous
+-   Configured auto-creation for config file when missing.
+-   Validated Docker volume mapping for config/data persistence.
+-   Added root API endpoint at [`localhost:8000`](localhost:8000).
