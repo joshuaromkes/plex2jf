@@ -20,9 +20,9 @@ I am a big fan of plex, and likewise with jellyfin. When migrating my users over
 
 ## Features
 
-- **Plex Watchlist → Seerr**: When a user adds to Plex watchlist, automatically create a Seerr request
-- **Seerr → Jellyfin**: When a user requests media in Seerr, Plex2Seerr will favorite it in Jellyfin
-- **Loose Mapping Fallback**: If strict IDs are missing/unusable, Plex items can be resolved via title/year/type search with confidence guardrails
+- **Plex Watchlist → Seerr**: When a user adds to Plex watchlist, automatically create a Seerr request.
+- **Seerr → Jellyfin**: When a user requests media in Seerr, plex2jf will favorite it in Jellyfin.
+- **Loose Mapping Fallback**: If strict IDs are missing/unusable, Plex items can be resolved via title/year/type search with confidence guardrails.
 - **Polling Interval**: Both watchlist and favourites are automatically kept in sync with a set polling interval (default 300s)
 
 ## Architecture
