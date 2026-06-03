@@ -6,7 +6,7 @@ A Python-based Docker service that synchronizes media requests and favorites bet
 ## AI Disclosure
 Before I continue, I would like to disclose the use of AI in the creation of this project.
 I am a system administrator NOT a programmer. Though I have extensive experience with building systems, managing them etc.
-I do not have professional experience in development, nor do I plan on aqcuiring same.
+I do not have professional experience in development, nor do I plan on acquiring same.
 
 This project comes with no warranty or guarantee. If you think you can improve this project in any way please feel free to touch base.
 Otherwise, I will do my absolute best in terms of maintaining and keeping this project running with the very limited dev experience I have.
@@ -23,7 +23,7 @@ I am a big fan of plex, and likewise with jellyfin. When migrating my users over
 - **Plex Watchlist → Seerr**: When a user adds to Plex watchlist, automatically create a Seerr request.
 - **Seerr → Jellyfin**: When a user requests media in Seerr, plex2jf will favorite it in Jellyfin.
 - **Loose Mapping Fallback**: If strict IDs are missing/unusable, Plex items can be resolved via title/year/type search with confidence guardrails.
-- **Polling Interval**: Both watchlist and favourites are automatically kept in sync with a set polling interval (default 300s)
+- **Polling Interval**: Both watchlist and favorites are automatically kept in sync with a set polling interval (default 300s)
 
 ## Architecture
 
@@ -56,34 +56,47 @@ I am a big fan of plex, and likewise with jellyfin. When migrating my users over
 4. Look for `authToken` in the URL
 
 #### Jellyfin API Key
-1. Open Jellyfin Dashboard
-2. Go to API Keys
-3. Create a new API key
+1. Open Jellyfin Dashboard → API Keys
+2. Create a new API key
 
 #### Seerr API Key
-1. Open Seerr Settings
-2. Go to General
-3. Copy the API Key
-
-#### User IDs
-- **Jellyfin**: Dashboard → Users → Click user → URL contains ID
-- **Seerr**: Settings → Users → User list shows IDs
+1. Open Seerr Settings → General
+2. Copy the API Key
 
 ### 2. Create Configuration
 
-Servers - Add Server
-- select your service type
-- Add name (optional)
-- Input URL (http://localhost:port)
-- Input Token
+Copy the example and fill in your credentials:
+```bash
+cp config.example.yaml config.yaml
+# Edit config.yaml with your server URLs and tokens
+```
 
-Click "Add Server"
+### 3. Docker Compose
 
-### 3. User Mapping
+```yaml
+plex2jf:
+  image: ghcr.io/joshuaromkes/plex2jf:latest
+  container_name: plex2jf
+  volumes:
+    - /path/to/config.yaml:/app/config/config.yaml
+    - /path/to/data:/data
+  environment:
+    - TZ=America/New_York
+    - PLEX2JF_LOG_LEVEL=INFO
+  restart: unless-stopped
+```
 
-1. User Mapping - Refresh Users
-2. Add Mapping
-3. Choose your plex user, Jellyfin User, Seerr User - Hit save
+```bash
+docker compose up -d plex2jf
+```
+
+Open `http://localhost:8000` and configure user mappings in the web UI.
+
+### 4. User Mapping
+
+1. Go to User Mapping in the web UI
+2. Refresh Users to pull users from all services
+3. Add mappings linking your Plex, Jellyfin, and Seerr users
 
 ### Environment Variables
 
@@ -139,7 +152,14 @@ logging:
 |----------|--------|-------------|
 | `/health` | GET | Health check |
 | `/stats` | GET | Sync statistics |
-| `/sync/plex-watchlist` | POST | Manually trigger Plex sync |
+| `/api` | GET | API root with endpoint listing |
+| `/api/dashboard/stats` | GET | Dashboard statistics |
+| `/api/dashboard/activity` | GET | Recent activity feed |
+| `/api/dashboard/sync` | POST | Trigger manual sync |
+| `/api/servers` | GET/POST | List or add server configs |
+| `/api/users` | GET/POST | List or create user mappings |
+| `/api/settings` | GET/PUT | Application settings |
+| `/sync/plex-watchlist` | POST | Trigger Plex watchlist sync |
 | `/sync/retry-pending` | POST | Retry pending items |
 | `/webhooks/seerr` | POST | Seerr webhook endpoint |
 
@@ -160,7 +180,7 @@ http://localhost:8000
 - **Settings**: Adjust sync preferences and logging levels.
 - **Activity**: View recent sync events and logs.
 
-The UI follows an "Arr-style" dark theme and is fully responsive, enhancing usability with clearer layouts and consistent design.
+The UI follows an "Arr-style" dark theme and is fully responsive.
 
 ## How It Works
 
@@ -204,14 +224,22 @@ plex2jf/
 │   ├── api/           # API clients (Plex, Jellyfin, Seerr)
 │   ├── config/        # Configuration management
 │   ├── database/      # Database models and session
+│   ├── routes/        # REST API routes
 │   ├── services/      # Sync engine, poller, user mapper
 │   ├── webhooks/      # Webhook handlers and routes
 │   ├── utils/         # Utilities
 │   ├── main.py        # FastAPI app
 │   └── scheduler.py   # Background polling scheduler
+├── frontend/          # React + TypeScript + Vite web UI
+│   └── src/
+│       ├── components/
+│       ├── pages/
+│       ├── services/
+│       └── types/
 ├── tests/             # Test suite
 ├── Dockerfile
 ├── docker-compose.yml
+├── .dockerignore
 ├── config.example.yaml
 └── requirements.txt
 ```

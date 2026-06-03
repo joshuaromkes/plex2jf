@@ -14,7 +14,7 @@ React + TypeScript + Vite web UI for managing plex2jf.
 ```bash
 cd frontend
 npm install
-npm run dev        # Dev server at http://localhost:5173
+npm run dev        # Dev server at http://localhost:3000
 ```
 
 The dev server proxies API requests to the backend at `http://localhost:8000`.
