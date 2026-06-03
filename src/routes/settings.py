@@ -1,7 +1,7 @@
 """Settings API routes."""
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -66,7 +66,7 @@ def set_setting(db: Session, key: str, value: Any) -> AppSettings:
     
     if setting:
         setting.value = value
-        setting.updated_at = datetime.utcnow()
+        setting.updated_at = datetime.now(timezone.utc)
     else:
         setting = AppSettings(key=key, value=value)
         db.add(setting)

@@ -2,7 +2,7 @@
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Set, Tuple
 
 from sqlalchemy import or_
@@ -339,7 +339,7 @@ class SyncEngine:
             if existing:
                 existing.synced_to_jellyfin = True
                 existing.jellyfin_item_id = item['Id']
-                existing.last_synced_at = datetime.utcnow()
+                existing.last_synced_at = datetime.now(timezone.utc)
                 existing.last_error = None
             else:
                 self.db.add(
@@ -352,7 +352,7 @@ class SyncEngine:
                         source_id=request_id,
                         synced_to_jellyfin=True,
                         jellyfin_item_id=item['Id'],
-                        last_synced_at=datetime.utcnow(),
+                        last_synced_at=datetime.now(timezone.utc),
                     )
                 )
 
@@ -371,7 +371,7 @@ class SyncEngine:
             if existing:
                 existing.synced_to_jellyfin = True
                 existing.jellyfin_item_id = item['Id']
-                existing.last_synced_at = datetime.utcnow()
+                existing.last_synced_at = datetime.now(timezone.utc)
                 existing.last_error = None
             else:
                 new_state = SyncState(
@@ -383,7 +383,7 @@ class SyncEngine:
                     source_id=request_id,
                     synced_to_jellyfin=True,
                     jellyfin_item_id=item['Id'],
-                    last_synced_at=datetime.utcnow(),
+                    last_synced_at=datetime.now(timezone.utc),
                 )
                 self.db.add(new_state)
             
@@ -686,7 +686,7 @@ class SyncEngine:
             if existing:
                 existing.synced_to_seerr = True
                 existing.seerr_request_id = existing_request_id
-                existing.last_synced_at = datetime.utcnow()
+                existing.last_synced_at = datetime.now(timezone.utc)
                 existing.last_error = None
             else:
                 self.db.add(
@@ -698,7 +698,7 @@ class SyncEngine:
                         source='plex_watchlist',
                         synced_to_seerr=True,
                         seerr_request_id=existing_request_id,
-                        last_synced_at=datetime.utcnow(),
+                        last_synced_at=datetime.now(timezone.utc),
                     )
                 )
 
@@ -727,7 +727,7 @@ class SyncEngine:
             if existing:
                 existing.synced_to_seerr = True
                 existing.seerr_request_id = request_id
-                existing.last_synced_at = datetime.utcnow()
+                existing.last_synced_at = datetime.now(timezone.utc)
                 existing.last_error = None
             else:
                 new_state = SyncState(
@@ -738,7 +738,7 @@ class SyncEngine:
                     source='plex_watchlist',
                     synced_to_seerr=True,
                     seerr_request_id=request_id,
-                    last_synced_at=datetime.utcnow(),
+                    last_synced_at=datetime.now(timezone.utc),
                 )
                 self.db.add(new_state)
             
@@ -920,7 +920,7 @@ class SyncEngine:
             if existing:
                 existing.synced_to_jellyfin = True
                 existing.jellyfin_item_id = item['Id']
-                existing.last_synced_at = datetime.utcnow()
+                existing.last_synced_at = datetime.now(timezone.utc)
                 existing.last_error = None
             else:
                 new_state = SyncState(
@@ -931,7 +931,7 @@ class SyncEngine:
                     source='plex_watchlist',
                     synced_to_jellyfin=True,
                     jellyfin_item_id=item['Id'],
-                    last_synced_at=datetime.utcnow(),
+                    last_synced_at=datetime.now(timezone.utc),
                 )
                 self.db.add(new_state)
             
@@ -954,7 +954,7 @@ class SyncEngine:
         Returns:
             Number of items successfully synced
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=max_age_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=max_age_days)
         
         pending = (
             self.db.query(SyncState)

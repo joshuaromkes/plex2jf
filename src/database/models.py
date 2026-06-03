@@ -1,6 +1,11 @@
 """Database models for plex2jf."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
+
+
+def _utcnow():
+    """Return current UTC datetime. Callable for SQLAlchemy column defaults."""
+    return datetime.now(timezone.utc)
 
 from sqlalchemy import (
     Boolean,
@@ -33,8 +38,8 @@ class ServerConfig(Base):
     is_active = Column(Boolean, default=True)
     last_test_at = Column(DateTime, nullable=True)
     last_test_status = Column(String, nullable=True)  # 'success', 'failed'
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
 
 class AppSettings(Base):
@@ -44,8 +49,7 @@ class AppSettings(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     key = Column(String, unique=True, nullable=False)
     value = Column(Text, nullable=False)  # JSON-encoded value
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
 class ExternalUser(Base):
     """User cache from external services (Plex, Jellyfin, Seerr)."""
@@ -56,7 +60,7 @@ class ExternalUser(Base):
     external_id = Column(String, nullable=False)
     username = Column(String, nullable=False)
     email = Column(String, nullable=True)
-    last_synced_at = Column(DateTime, default=datetime.utcnow)
+    last_synced_at = Column(DateTime, default=_utcnow)
     
     __table_args__ = (
         UniqueConstraint("service_type", "external_id", name="uix_external_user"),
@@ -74,8 +78,8 @@ class UserMapping(Base):
     seerr_user_id = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
     
     # Relationships
     sync_states = relationship("SyncState", back_populates="user_mapping", cascade="all, delete-orphan")
@@ -106,7 +110,7 @@ class SyncState(Base):
     last_error = Column(Text, nullable=True)
     
     # Timestamps
-    first_seen_at = Column(DateTime, default=datetime.utcnow)
+    first_seen_at = Column(DateTime, default=_utcnow)
     last_synced_at = Column(DateTime, nullable=True)
     
     # Relationships
@@ -127,7 +131,7 @@ class WebhookEvent(Base):
     payload = Column(Text, nullable=False)  # JSON
     processed = Column(Boolean, default=False)
     error = Column(Text, nullable=True)
-    received_at = Column(DateTime, default=datetime.utcnow)
+    received_at = Column(DateTime, default=_utcnow)
     processed_at = Column(DateTime, nullable=True)
 
 

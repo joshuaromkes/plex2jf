@@ -1,6 +1,6 @@
 """Polling service for Plex watchlists."""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 
 from sqlalchemy.orm import Session
@@ -156,17 +156,17 @@ class PollerService:
         )
         
         if state:
-            state.last_poll_at = datetime.utcnow()
+            state.last_poll_at = datetime.now(timezone.utc)
             if success:
-                state.last_success_at = datetime.utcnow()
+                state.last_success_at = datetime.now(timezone.utc)
                 state.error_count = 0
             else:
                 state.error_count += 1
         else:
             state = PollingState(
                 service=service,
-                last_poll_at=datetime.utcnow(),
-                last_success_at=datetime.utcnow() if success else None,
+                last_poll_at=datetime.now(timezone.utc),
+                last_success_at=datetime.now(timezone.utc) if success else None,
                 error_count=0 if success else 1,
             )
             self.db.add(state)

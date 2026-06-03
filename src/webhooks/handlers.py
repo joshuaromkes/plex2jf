@@ -1,7 +1,7 @@
 """Webhook handlers for external services."""
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 from sqlalchemy.orm import Session
@@ -44,7 +44,7 @@ class SeerrWebhookHandler:
         if event_type not in ['REQUEST_PENDING', 'REQUEST_APPROVED']:
             logger.debug(f"Ignoring event type: {event_type}")
             event.processed = True
-            event.processed_at = datetime.utcnow()
+            event.processed_at = datetime.now(timezone.utc)
             self.db.commit()
             return True
         
@@ -63,14 +63,14 @@ class SeerrWebhookHandler:
             if not tmdb_id and tvdb_id:
                 logger.warning(f"TVDB ID provided but TMDB ID needed: {title}")
                 event.error = "TVDB ID provided but TMDB ID needed"
-                event.processed_at = datetime.utcnow()
+                event.processed_at = datetime.now(timezone.utc)
                 self.db.commit()
                 return False
             
             if not tmdb_id:
                 logger.warning(f"No TMDB ID in webhook payload: {title}")
                 event.error = "No TMDB ID in payload"
-                event.processed_at = datetime.utcnow()
+                event.processed_at = datetime.now(timezone.utc)
                 self.db.commit()
                 return False
             
@@ -84,7 +84,7 @@ class SeerrWebhookHandler:
             )
             
             event.processed = True
-            event.processed_at = datetime.utcnow()
+            event.processed_at = datetime.now(timezone.utc)
             self.db.commit()
             
             return success
@@ -92,7 +92,7 @@ class SeerrWebhookHandler:
         except Exception as e:
             logger.error(f"Error processing Seerr webhook: {e}")
             event.error = str(e)
-            event.processed_at = datetime.utcnow()
+            event.processed_at = datetime.now(timezone.utc)
             self.db.commit()
             return False
     

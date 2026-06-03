@@ -8,13 +8,13 @@ Before I continue, I would like to disclose the use of AI in the creation of thi
 I am a system administrator NOT a programmer. Though I have extensive experience with building systems, managing them etc.
 I do not have professional experience in development, nor do I plan on aqcuiring same.
 
-This project comes with no warranty or gaurantee. If you think you can improve this project in anyway please feel free to touch base.
-Otherwise, I will do my absloute best in terms of maintaining and keeping this project running with the very limited dev experience I have. 
+This project comes with no warranty or guarantee. If you think you can improve this project in any way please feel free to touch base.
+Otherwise, I will do my absolute best in terms of maintaining and keeping this project running with the very limited dev experience I have.
 
 ## Reason For Project
 I am a big fan of plex, and likewise with jellyfin. When migrating my users over from plex to jellyfin I noticed a few limitations
 1. Watchlist: there is no surefire way to move their watchlist over from plex to jellyfin
-2. Favourites: when someone requests something in seerr, there is no (current) - last time i checked, functionality to auto-favourite these requests into jellyfin
+2. Favorites: when someone requests something in seerr, there is no (current) surefire way to auto-favorite these requests into jellyfin
 
 
 
@@ -89,7 +89,7 @@ Click "Add Server"
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PLEX2JF_CONFIG_PATH` | `/app/config.yaml` | Path to config file |
+| `PLEX2JF_CONFIG_PATH` | `/app/config/config.yaml` | Path to config file |
 | `PLEX2JF_DB_PATH` | `/data/plex2jf.db` | Path to SQLite database |
 | `PLEX2JF_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
 | `PLEX2JF_POLLING_INTERVAL` | `300` | Polling interval in seconds |
@@ -155,7 +155,7 @@ http://localhost:8000
 
 ### Features
 - **Dashboard**: Overview of sync statistics and system health.
-- **Servers**: Configure Plex, Jellyfin, and Seerr connections with test buttons. The form now includes an optional name field with auto-generated placeholder and improved spacing for better user experience.
+- **Servers**: Configure Plex, Jellyfin, and Seerr connections with an optional name field and improved spacing.
 - **User Mapping**: Table-based interface for mapping users between services with inline editing, searchable dropdowns, and per-mapping statistics.
 - **Settings**: Adjust sync preferences and logging levels.
 - **Activity**: View recent sync events and logs.
@@ -179,11 +179,6 @@ The UI follows an "Arr-style" dark theme and is fully responsive, enhancing usab
 3. Strict ID-first sync is attempted for Seerr requests and/or Jellyfin favorites
 4. If strict ID resolution fails, fallback search uses title/year/type with scoring and ambiguity guardrails
 5. Unresolved items are tracked in SQLite with retry-safe state so they can be retried later without DB integrity issues
-
-### Recent Stability Notes
-
-- Added compatibility fallback for Seerr `/search` behavior: when optional filters are rejected, plex2jf retries with query-only search.
-- Rebuild verification (2026-03-16) completed successfully with log marker: `Plex watchlist poll complete. Synced 1100 items.`
 
 ## Development
 

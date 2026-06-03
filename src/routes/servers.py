@@ -1,6 +1,6 @@
 """Server management API routes."""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -143,7 +143,7 @@ async def update_server(
     for field, value in update_data.items():
         setattr(server, field, value)
     
-    server.updated_at = datetime.utcnow()
+    server.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(server)
     
@@ -207,7 +207,7 @@ async def test_server_connection(server_id: int, db: Session = Depends(get_db)):
             client.test_connection()
         
         # Update test status
-        server.last_test_at = datetime.utcnow()
+        server.last_test_at = datetime.now(timezone.utc)
         server.last_test_status = "success"
         db.commit()
         
@@ -218,7 +218,7 @@ async def test_server_connection(server_id: int, db: Session = Depends(get_db)):
         
     except Exception as e:
         # Update test status
-        server.last_test_at = datetime.utcnow()
+        server.last_test_at = datetime.now(timezone.utc)
         server.last_test_status = "failed"
         db.commit()
         

@@ -1,6 +1,6 @@
 """User management API routes."""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -168,7 +168,7 @@ async def update_user_mapping(
     for field, value in update_data.items():
         setattr(existing, field, value)
     
-    existing.updated_at = datetime.utcnow()
+    existing.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(existing)
     

@@ -1,7 +1,7 @@
 """System API routes."""
 import logging
 import platform
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends
@@ -72,7 +72,7 @@ async def health_check(db: Session = Depends(get_db)):
         "success": True,
         "data": {
             "status": overall_status,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "database": database_status,
             "servers": server_statuses
         }
