@@ -55,20 +55,15 @@ def load_config(config_path: Optional[str] = None) -> Config:
     
     config_file = Path(config_path)
     
-    # Create config from example if it doesn't exist
+    # Config file must exist — do NOT auto-create from example
+    # (example contains placeholder tokens that would cause silent sync failures)
     if not config_file.exists():
-        example_path = Path("/app/config.example.yaml")
-        if example_path.exists():
-            logger = logging.getLogger(__name__)
-            logger.info(f"Creating config file from example: {config_path}")
-            # Copy example to config location
-            import shutil
-            shutil.copy(example_path, config_file)
-        else:
-            raise FileNotFoundError(
-                f"Configuration file not found: {config_path}\n"
-                f"Please create a config.yaml file based on config.example.yaml"
-            )
+        raise FileNotFoundError(
+            f"Configuration file not found: {config_path}\n"
+            f"Copy config.example.yaml to {config_path} and fill in your server credentials:\n"
+            f"  cp /app/config.example.yaml {config_path}\n"
+            f"Then edit {config_path} with your Plex token, Jellyfin API key, and Seerr API key."
+        )
     
     with open(config_file, "r") as f:
         data = yaml.safe_load(f)

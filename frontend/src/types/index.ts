@@ -95,6 +95,7 @@ export interface DashboardStats {
   items_synced: number;
   items_pending: number;
   items_failed: number;
+  last_sync?: string | null;
   seerr_request: {
     total: number;
     synced: number;

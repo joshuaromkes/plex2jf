@@ -103,6 +103,17 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
         SyncState.synced_to_jellyfin == False,
         SyncState.retry_count >= 3
     ).count()
+
+    # Last sync timestamps
+    from src.database.models import PollingState
+    plex_poll = db.query(PollingState).filter(PollingState.service == 'plex_watchlist').first()
+    seerr_poll = db.query(PollingState).filter(PollingState.service == 'seerr_requests').first()
+
+    last_sync = None
+    if plex_poll and plex_poll.last_success_at:
+        last_sync = plex_poll.last_success_at.isoformat()
+    elif seerr_poll and seerr_poll.last_success_at:
+        last_sync = seerr_poll.last_success_at.isoformat()
     
     # Seerr request specific stats
     seerr_query = db.query(SyncState).filter(SyncState.source == 'seerr_request')
@@ -127,6 +138,7 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
             "items_synced": items_synced,
             "items_pending": items_pending,
             "items_failed": items_failed,
+            "last_sync": last_sync,
             "seerr_request": {
                 "total": seerr_total,
                 "synced": seerr_synced,

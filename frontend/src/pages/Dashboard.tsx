@@ -102,14 +102,21 @@ export function Dashboard() {
       title="Dashboard" 
       description="Overview of your plex2jf instance"
       action={
-        <button
-          onClick={handleManualSync}
-          disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Syncing...' : 'Manual Sync'}
-        </button>
+        <div className="flex items-center gap-4">
+          {stats?.last_sync && (
+            <span className="text-xs text-text-muted">
+              Last sync: {new Date(stats.last_sync).toLocaleString()}
+            </span>
+          )}
+          <button
+            onClick={handleManualSync}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Manual Sync'}
+          </button>
+        </div>
       }
     >
       {/* Stats Grid */}

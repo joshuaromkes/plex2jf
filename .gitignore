@@ -63,4 +63,13 @@ htmlcov/
 Thumbs.db
 
 # Docker
-.dockerignore
+
+# AI tool detritus
+.roo/
+.cursor/
+.cursorrules
+CLAUDE.md
+AGENTS.md
+.codex/
+.windsurf/
+.aider*
