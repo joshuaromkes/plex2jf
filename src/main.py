@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.config.settings import load_config, get_settings
+from src.config.settings import get_settings
 from src.config.db_config import (
     get_log_level, get_log_file,
     get_server_credentials, get_feature_flags,
@@ -21,7 +21,6 @@ from src.api.jellyfin import JellyfinClient
 from src.api.seerr import SeerrClient
 from src.services.sync_engine import SyncEngine
 from src.services.poller import PollerService
-from src.services.user_mapper import UserMapper
 from src.webhooks.routes import router as webhooks_router
 from src.utils.logging_config import setup_logging
 from src._version import __version__
@@ -61,19 +60,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         log_file_path = "/data/plex2jf.log"
 
     setup_logging(level=level, log_file=log_file_path or "/data/plex2jf.log")
-
-    # Optionally sync user_mappings from config.yaml if it exists (legacy bridge).
-    # On a fresh install without config.yaml this is silently skipped.
-    try:
-        config = load_config()
-        with get_db_context() as db:
-            user_mapper = UserMapper(db)
-            user_mapper.sync_user_mappings(config.user_mappings)
-            logger.info(f"Synced {len(config.user_mappings)} user mappings from config.yaml")
-    except FileNotFoundError:
-        logger.info("No config.yaml found — skipping legacy user-mapping import.")
-    except Exception as e:
-        logger.warning(f"Could not sync legacy user mappings: {e}")
 
     logger.info("plex2jf started successfully")
     

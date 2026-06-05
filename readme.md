@@ -119,14 +119,6 @@ Tweak sync behavior under **Settings**: polling interval, feature toggles, webho
 | `PLEX2JF_DB_PATH` | `/data/plex2jf.db` | Path to SQLite database |
 | `PLEX2JF_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
 
-### Legacy Config File (Optional)
-
-You don't need a config file to get started. All server credentials, user mappings, and settings are managed through the web UI and stored in the SQLite database.
-
-`config.yaml` is only used for **one-time user-mapping import on first startup**. If you have an existing `config.yaml` with `user_mappings`, mount it and the app will import them on boot. After import, the file is no longer needed.
-
-Copy `config.example.yaml` to `config/config.yaml`, fill in your user mappings, and start the container.
-
 ## API Endpoints
 
 | Endpoint | Method | Description |
@@ -224,8 +216,7 @@ plex2jf/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .dockerignore
-├── config.example.yaml   # Legacy user-mapping import only
-└── requirements.txt
+├── requirements.txt
 ```
 
 ## Troubleshooting

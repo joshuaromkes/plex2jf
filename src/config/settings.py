@@ -1,21 +1,12 @@
 """Application settings management."""
-import logging
-import os
 from functools import lru_cache
-from pathlib import Path
 from typing import Optional
 
-import yaml
 from pydantic_settings import BaseSettings
-
-from src.config.models import Config
 
 
 class Settings(BaseSettings):
     """Application settings."""
-    # Config file path
-    config_path: str = "/app/config/config.yaml"
-    
     # Database
     db_path: str = "/data/plex2jf.db"
     
@@ -35,40 +26,6 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
-
-
-def load_config(config_path: Optional[str] = None) -> Config:
-    """Load configuration from YAML file.
-    
-    Args:
-        config_path: Path to config file. If None, uses default path.
-        
-    Returns:
-        Config: Parsed configuration
-        
-    Raises:
-        FileNotFoundError: If config file doesn't exist
-        ValueError: If config is invalid
-    """
-    if config_path is None:
-        config_path = get_settings().config_path
-    
-    config_file = Path(config_path)
-    
-    # Config file must exist — do NOT auto-create from example
-    # (example contains placeholder tokens that would cause silent sync failures)
-    if not config_file.exists():
-        raise FileNotFoundError(
-            f"Configuration file not found: {config_path}\n"
-            f"Copy config.example.yaml to {config_path} and fill in your server credentials:\n"
-            f"  cp /app/config.example.yaml {config_path}\n"
-            f"Then edit {config_path} with your Plex token, Jellyfin API key, and Seerr API key."
-        )
-    
-    with open(config_file, "r") as f:
-        data = yaml.safe_load(f)
-    
-    return Config(**data)
 
 
 def get_db_url() -> str:

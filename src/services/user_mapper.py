@@ -63,7 +63,7 @@ class UserMapper:
         Returns:
             True if mapping appears to be an example
         """
-        # Common example usernames from config.example.yaml
+        # Default example usernames that look like placeholders
         example_usernames = {"john_plex", "jane_plex", "john", "jane"}
         if mapping.plex_username in example_usernames:
             return True

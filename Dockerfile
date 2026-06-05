@@ -31,7 +31,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application
 COPY src/ ./src/
-COPY config.example.yaml /app/config.example.yaml
 
 # Copy built frontend from stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist

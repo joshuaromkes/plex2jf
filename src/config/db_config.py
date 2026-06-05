@@ -15,7 +15,7 @@ from src.database.models import ServerConfig, AppSettings
 
 logger = logging.getLogger(__name__)
 
-# ── default values (match config.example.yaml / Settings.DEFAULT_SETTINGS) ──
+# ── default values ──
 
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_LOG_FILE = "/data/plex2jf.log"
