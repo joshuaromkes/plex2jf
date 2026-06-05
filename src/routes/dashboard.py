@@ -299,13 +299,26 @@ async def trigger_manual_sync(db: Session = Depends(get_db)):
         sync_engine = SyncEngine(db, plex_client, jellyfin_client, seerr_client, _Cfg())
         poller = PollerService(db, plex_client, sync_engine)
         
-        # Run the sync
-        count = poller.poll_plex_watchlists()
-        
+        # Run the syncs
+        watchlist_count = poller.poll_plex_watchlists()
+
+        seerr_count = 0
+        if flags.get("seerr_to_jellyfin") and seerr_client:
+            seerr_count = poller.poll_seerr_requests_to_jellyfin(
+                include_unmapped=bool(flags.get("sync_unmapped_seerr")),
+            )
+
+        # Retry pending items
+        retry_count = sync_engine.retry_pending_items()
+
         return {
             "success": True,
-            "message": f"Sync completed. {count} items synced.",
-            "data": {"synced_items": count}
+            "message": f"Sync completed. {watchlist_count} watchlist items, {seerr_count} Seerr requests synced.",
+            "data": {
+                "synced_items": watchlist_count,
+                "seerr_synced": seerr_count,
+                "retried": retry_count,
+            }
         }
     except Exception as e:
         logger.error(f"Error during manual sync: {e}")

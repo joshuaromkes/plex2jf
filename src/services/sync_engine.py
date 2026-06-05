@@ -415,8 +415,11 @@ class SyncEngine:
 
         title = (
             media.get('title')
+            or media.get('name')
+            or media.get('mediaTitle')
             or request.get('subject')
             or request.get('title')
+            or request.get('mediaTitle')
             or 'Unknown'
         )
 
@@ -663,7 +666,7 @@ class SyncEngine:
                     user_mapping_id=None,
                     media_type=media_type,
                     external_id=tmdb_id,
-                    title=title,
+                    title=title or 'Unknown',
                     source=source,
                     source_id=record_source_id,
                     retry_count=1,
@@ -671,6 +674,9 @@ class SyncEngine:
                 ))
             self.db.commit()
             return False
+
+        # Use the Jellyfin item name when the Seerr title is unavailable.
+        display_title = title if title and title != 'Unknown' else item.get('Name', title or 'Unknown')
 
         try:
             already = self.jellyfin.is_item_favorited(
@@ -685,12 +691,13 @@ class SyncEngine:
                 existing.jellyfin_item_id = item['Id']
                 existing.last_synced_at = datetime.now(timezone.utc)
                 existing.last_error = None
+                existing.title = display_title
             else:
                 self.db.add(SyncState(
                     user_mapping_id=None,
                     media_type=media_type,
                     external_id=tmdb_id,
-                    title=title,
+                    title=display_title,
                     source=source,
                     source_id=record_source_id,
                     synced_to_jellyfin=True,
@@ -707,12 +714,13 @@ class SyncEngine:
                 existing.jellyfin_item_id = item['Id']
                 existing.last_synced_at = datetime.now(timezone.utc)
                 existing.last_error = None
+                existing.title = display_title
             else:
                 self.db.add(SyncState(
                     user_mapping_id=None,
                     media_type=media_type,
                     external_id=tmdb_id,
-                    title=title,
+                    title=display_title,
                     source=source,
                     source_id=record_source_id,
                     synced_to_jellyfin=True,

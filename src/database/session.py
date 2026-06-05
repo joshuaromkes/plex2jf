@@ -45,7 +45,7 @@ def _migrate_v1_2_0(engine) -> None:
 
     columns = {c["name"]: c for c in inspector.get_columns("sync_state")}
     col = columns.get("user_mapping_id")
-    if col is None or not col.get("nullable", True):
+    if col is None or col.get("nullable"):
         # Already nullable (new schema) or column missing — nothing to do.
         return
 
