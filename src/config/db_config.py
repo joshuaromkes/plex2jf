@@ -25,9 +25,8 @@ DEFAULT_FEATURES = {
     "seerr_to_jellyfin": True,
     "plex_watchlist_to_seerr": True,
     "plex_watchlist_to_jellyfin": True,
-    # When enabled, Seerr users without a UserMapping row are still synced
-    # to Jellyfin by matching usernames between the two services.
-    "sync_unmapped_seerr": False,
+    # Always on with favorites sync — no separate toggle needed
+    "sync_unmapped_seerr": True,
 }
 
 
