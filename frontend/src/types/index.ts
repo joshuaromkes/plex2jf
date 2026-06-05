@@ -102,6 +102,12 @@ export interface DashboardStats {
     pending: number;
     failed: number;
   };
+  unmapped: {
+    total: number;
+    synced: number;
+    pending: number;
+    failed: number;
+  };
 }
 
 export interface ActivityItem {

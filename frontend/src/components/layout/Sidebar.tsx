@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -7,6 +8,7 @@ import {
   Activity,
   Heart
 } from 'lucide-react';
+import { systemApi } from '../../services/api';
 
 interface NavItemProps {
   to: string;
@@ -33,6 +35,12 @@ function NavItem({ to, icon, label }: NavItemProps) {
 }
 
 export function Sidebar() {
+  const [version, setVersion] = useState<string>('');
+
+  useEffect(() => {
+    systemApi.getInfo().then(info => setVersion(info.version)).catch(() => {});
+  }, []);
+
   return (
     <aside className="w-60 bg-bg-secondary border-r border-bg-tertiary flex flex-col h-screen sticky top-0">
       {/* Logo */}
@@ -80,7 +88,7 @@ export function Sidebar() {
       {/* Footer */}
       <div className="p-4 border-t border-bg-tertiary">
         <p className="text-xs text-text-muted text-center">
-          plex2jf v1.0.0
+          plex2jf v{version || '...'}
         </p>
       </div>
     </aside>

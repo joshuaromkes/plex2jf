@@ -125,7 +125,7 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
     elif seerr_poll and seerr_poll.last_success_at:
         last_sync = _utc_iso(seerr_poll.last_success_at)
     
-    # Seerr request specific stats
+    # Seerr request specific stats (includes both mapped and unmapped)
     seerr_query = db.query(SyncState).filter(SyncState.source == 'seerr_request')
     seerr_total = seerr_query.count()
     seerr_synced = seerr_query.filter(SyncState.synced_to_jellyfin == True).count()
@@ -134,6 +134,19 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
         SyncState.retry_count < 3,
     ).count()
     seerr_failed = seerr_query.filter(
+        SyncState.synced_to_jellyfin == False,
+        SyncState.retry_count >= 3,
+    ).count()
+
+    # Unmapped stats (user_mapping_id IS NULL)
+    unmapped_query = db.query(SyncState).filter(SyncState.user_mapping_id == None)
+    unmapped_total = unmapped_query.count()
+    unmapped_synced = unmapped_query.filter(SyncState.synced_to_jellyfin == True).count()
+    unmapped_pending = unmapped_query.filter(
+        SyncState.synced_to_jellyfin == False,
+        SyncState.retry_count < 3,
+    ).count()
+    unmapped_failed = unmapped_query.filter(
         SyncState.synced_to_jellyfin == False,
         SyncState.retry_count >= 3,
     ).count()
@@ -154,6 +167,12 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
                 "synced": seerr_synced,
                 "pending": seerr_pending,
                 "failed": seerr_failed,
+            },
+            "unmapped": {
+                "total": unmapped_total,
+                "synced": unmapped_synced,
+                "pending": unmapped_pending,
+                "failed": unmapped_failed,
             }
         }
     }
@@ -168,7 +187,7 @@ async def get_activity_feed(
     db: Session = Depends(get_db)
 ):
     """Get recent activity feed."""
-    query = db.query(SyncState).join(UserMapping)
+    query = db.query(SyncState).outerjoin(UserMapping)
     
     # Apply filters
     if status:

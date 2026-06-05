@@ -185,6 +185,42 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Unmapped User Sync Stats */}
+      <div className="card mb-8">
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Unmapped User Sync</h2>
+        <p className="text-sm text-text-muted mb-4">Seerr users without an explicit mapping — favorited via username matching.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            icon={ListChecks}
+            label="Total"
+            value={stats?.unmapped?.total || 0}
+            color="blue"
+            subtext="Items processed"
+          />
+          <StatCard
+            icon={CheckCircle}
+            label="Synced"
+            value={stats?.unmapped?.synced || 0}
+            color="green"
+            subtext="Favorited in Jellyfin"
+          />
+          <StatCard
+            icon={Clock}
+            label="Pending"
+            value={stats?.unmapped?.pending || 0}
+            color={stats?.unmapped?.pending ? 'yellow' : 'green'}
+            subtext="Item not in library yet"
+          />
+          <StatCard
+            icon={AlertTriangle}
+            label="Failed"
+            value={stats?.unmapped?.failed || 0}
+            color={stats?.unmapped?.failed ? 'red' : 'green'}
+            subtext="Exceeded retry limit"
+          />
+        </div>
+      </div>
+
       {/* Server Status */}
       <div className="card">
         <h2 className="text-lg font-semibold text-text-primary mb-4">Server Status</h2>

@@ -90,7 +90,7 @@ class SyncState(Base):
     __tablename__ = "sync_state"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_mapping_id = Column(Integer, ForeignKey("user_mappings.id"), nullable=False)
+    user_mapping_id = Column(Integer, ForeignKey("user_mappings.id"), nullable=True)
     media_type = Column(String, nullable=False)  # 'movie' or 'tv'
     external_id = Column(String, nullable=False)  # TMDB/TVDB ID
     title = Column(String, nullable=True)

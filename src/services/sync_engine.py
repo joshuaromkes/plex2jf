@@ -630,16 +630,46 @@ class SyncEngine:
     ) -> bool:
         """Favorite a Jellyfin item for a user without requiring a UserMapping.
 
-        Used by the unmapped-Seerr fallback path.  Does not persist SyncState
-        (there is no user_mapping_id to key on), so retries rely on the
-        already-favorited pre-check on subsequent runs.
+        Used by the unmapped-Seerr fallback path.  Persists SyncState
+        records with user_mapping_id=None so the dashboard, activity
+        feed, and stats reflect unmapped sync activity.
         """
         if self.jellyfin is None:
             return False
 
+        # Use source_id (or jellyfin_user_id as fallback) to distinguish
+        # unmapped records that share the same TMDB ID.
+        record_source_id = source_id or jellyfin_user_id
+
+        existing = (
+            self.db.query(SyncState)
+            .filter(
+                SyncState.user_mapping_id == None,
+                SyncState.external_id == tmdb_id,
+                SyncState.source == source,
+                SyncState.source_id == record_source_id,
+            )
+            .first()
+        )
+
         jf_media_type = 'Movie' if media_type == 'movie' else 'Series'
         item = self.jellyfin.search_by_tmdb_id(tmdb_id, jf_media_type)
         if not item:
+            if existing:
+                existing.retry_count = (existing.retry_count or 0) + 1
+                existing.last_error = "Item not found in Jellyfin library"
+            else:
+                self.db.add(SyncState(
+                    user_mapping_id=None,
+                    media_type=media_type,
+                    external_id=tmdb_id,
+                    title=title,
+                    source=source,
+                    source_id=record_source_id,
+                    retry_count=1,
+                    last_error="Item not found in Jellyfin library",
+                ))
+            self.db.commit()
             return False
 
         try:
@@ -650,9 +680,53 @@ class SyncEngine:
             already = False
 
         if already:
+            if existing:
+                existing.synced_to_jellyfin = True
+                existing.jellyfin_item_id = item['Id']
+                existing.last_synced_at = datetime.now(timezone.utc)
+                existing.last_error = None
+            else:
+                self.db.add(SyncState(
+                    user_mapping_id=None,
+                    media_type=media_type,
+                    external_id=tmdb_id,
+                    title=title,
+                    source=source,
+                    source_id=record_source_id,
+                    synced_to_jellyfin=True,
+                    jellyfin_item_id=item['Id'],
+                    last_synced_at=datetime.now(timezone.utc),
+                ))
+            self.db.commit()
             return True
 
-        return self.jellyfin.favorite_item(jellyfin_user_id, item['Id'])
+        success = self.jellyfin.favorite_item(jellyfin_user_id, item['Id'])
+        if success:
+            if existing:
+                existing.synced_to_jellyfin = True
+                existing.jellyfin_item_id = item['Id']
+                existing.last_synced_at = datetime.now(timezone.utc)
+                existing.last_error = None
+            else:
+                self.db.add(SyncState(
+                    user_mapping_id=None,
+                    media_type=media_type,
+                    external_id=tmdb_id,
+                    title=title,
+                    source=source,
+                    source_id=record_source_id,
+                    synced_to_jellyfin=True,
+                    jellyfin_item_id=item['Id'],
+                    last_synced_at=datetime.now(timezone.utc),
+                ))
+            self.db.commit()
+            return True
+        else:
+            if existing:
+                existing.retry_count = (existing.retry_count or 0) + 1
+                existing.last_error = "Failed to favorite item"
+            self.db.commit()
+            return False
 
     def sync_plex_watchlist_to_seerr(
         self,
