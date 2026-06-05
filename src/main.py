@@ -11,7 +11,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.config.settings import load_config, get_settings
-from src.database.session import init_db, get_db
+from src.config.db_config import (
+    get_log_level, get_log_file,
+    get_server_credentials, get_feature_flags,
+)
+from src.database.session import init_db, get_db, get_db_context
 from src.api.plex import PlexClient
 from src.api.jellyfin import JellyfinClient
 from src.api.seerr import SeerrClient
@@ -20,6 +24,7 @@ from src.services.poller import PollerService
 from src.services.user_mapper import UserMapper
 from src.webhooks.routes import router as webhooks_router
 from src.utils.logging_config import setup_logging
+from src._version import __version__
 
 # Import new routes
 from src.routes import (
@@ -41,29 +46,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Application lifespan handler."""
     # Startup
     logger.info("Starting plex2jf...")
-    
+
     # Initialize database
     init_db()
-    
-    # Load config and sync user mappings
+
+    # Configure logging from DB settings (falling back to defaults).
+    # config.yaml is no longer required — everything is DB-managed.
+    try:
+        with get_db_context() as db:
+            level = get_log_level(db)
+            log_file_path = get_log_file(db)
+    except Exception:
+        level = "INFO"
+        log_file_path = "/data/plex2jf.log"
+
+    setup_logging(level=level, log_file=log_file_path or "/data/plex2jf.log")
+
+    # Optionally sync user_mappings from config.yaml if it exists (legacy bridge).
+    # On a fresh install without config.yaml this is silently skipped.
     try:
         config = load_config()
-        setup_logging(
-            level=config.logging.level,
-            log_file=config.logging.file,
-        )
-        
-        # Sync user mappings to database
-        from src.database.session import get_db_context
         with get_db_context() as db:
             user_mapper = UserMapper(db)
             user_mapper.sync_user_mappings(config.user_mappings)
-            logger.info(f"Synced {len(config.user_mappings)} user mappings")
-    
+            logger.info(f"Synced {len(config.user_mappings)} user mappings from config.yaml")
+    except FileNotFoundError:
+        logger.info("No config.yaml found — skipping legacy user-mapping import.")
     except Exception as e:
-        logger.error(f"Error during startup: {e}")
-        raise
-    
+        logger.warning(f"Could not sync legacy user mappings: {e}")
+
     logger.info("plex2jf started successfully")
     
     yield
@@ -76,7 +87,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 app = FastAPI(
     title="plex2jf",
     description="Sync media requests and favorites between Plex, Jellyfin, and Seerr",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -89,24 +100,33 @@ app.include_router(dashboard_router)
 app.include_router(system_router)
 
 
-def get_sync_engine(db: Session = Depends(get_db)) -> SyncEngine:
-    """Get sync engine instance."""
-    config = load_config()
-    
-    plex_client = PlexClient(
-        token=config.plex.token,
-        url=config.plex.url,
-    )
+def get_sync_engine(db: Session = Depends(get_db)) -> SyncEngine | None:
+    """Get sync engine instance using DB-stored server credentials.
+
+    Returns None if any required server is not configured (so callers
+    can return a friendly error instead of crashing).
+    """
+    plex = get_server_credentials(db, "plex")
+    jellyfin = get_server_credentials(db, "jellyfin")
+    seerr = get_server_credentials(db, "seerr")
+
+    if not plex:
+        logger.warning("No active Plex server configured — sync engine unavailable")
+        return None
+
+    plex_client = PlexClient(token=plex["token"], url=plex["url"])
     jellyfin_client = JellyfinClient(
-        url=config.jellyfin.url,
-        api_key=config.jellyfin.api_key,
-    )
+        url=jellyfin["url"], api_key=jellyfin["api_key"]
+    ) if jellyfin else None
     seerr_client = SeerrClient(
-        url=config.seerr.url,
-        api_key=config.seerr.api_key,
-    )
-    
-    return SyncEngine(db, plex_client, jellyfin_client, seerr_client, config)
+        url=seerr["url"], api_key=seerr["api_key"]
+    ) if seerr else None
+
+    flags = get_feature_flags(db)
+    # Build a minimal config-like object for SyncEngine compatibility
+    class _Cfg:
+        sync = type("s", (), {"features": type("f", (), flags)})()
+    return SyncEngine(db, plex_client, jellyfin_client, seerr_client, _Cfg())
 
 
 @app.get("/api")
@@ -114,7 +134,7 @@ async def api_root() -> dict:
     """API root endpoint showing available endpoints."""
     return {
         "service": "plex2jf",
-        "version": "1.0.0",
+        "version": __version__,
         "description": "Sync media requests and favorites between Plex, Jellyfin, and Seerr",
         "api_endpoints": {
             "servers": "/api/servers",
@@ -154,20 +174,31 @@ async def health_check(db: Session = Depends(get_db)) -> dict:
 
 
 @app.get("/stats")
-async def get_stats(sync_engine: SyncEngine = Depends(get_sync_engine)) -> dict:
-    """Get sync statistics."""
-    return sync_engine.get_stats()
+async def get_stats(db: Session = Depends(get_db)) -> dict:
+    """Get sync statistics (DB-only, no API clients needed)."""
+    se = get_sync_engine(db)
+    if se is None:
+        return {"total_items": 0, "synced_to_jellyfin": 0, "synced_to_seerr": 0,
+                "pending": 0, "seerr_request": {"total": 0, "synced": 0, "pending": 0, "failed": 0}}
+    return se.get_stats()
 
 
 @app.post("/sync/plex-watchlist")
 async def sync_plex_watchlist(
-    sync_engine: SyncEngine = Depends(get_sync_engine),
-    poller: PollerService = Depends(lambda db: PollerService(db, PlexClient(
-        token=load_config().plex.token,
-        url=load_config().plex.url,
-    ), sync_engine)),
+    db: Session = Depends(get_db),
 ) -> dict:
     """Manually trigger Plex watchlist sync."""
+    plex = get_server_credentials(db, "plex")
+    if not plex:
+        raise HTTPException(
+            status_code=503,
+            detail="No Plex server configured. Add one in Settings → Servers.",
+        )
+    se = get_sync_engine(db)
+    if se is None:
+        raise HTTPException(status_code=503, detail="Sync engine unavailable.")
+    plex_client = PlexClient(token=plex["token"], url=plex["url"])
+    poller = PollerService(db, plex_client, se)
     try:
         count = poller.poll_plex_watchlists()
         return {"status": "success", "synced_items": count}
@@ -178,11 +209,17 @@ async def sync_plex_watchlist(
 
 @app.post("/sync/retry-pending")
 async def retry_pending(
-    sync_engine: SyncEngine = Depends(get_sync_engine),
+    db: Session = Depends(get_db),
 ) -> dict:
     """Retry pending items."""
+    se = get_sync_engine(db)
+    if se is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No Plex server configured. Add one in Settings → Servers.",
+        )
     try:
-        count = sync_engine.retry_pending_items()
+        count = se.retry_pending_items()
         return {"status": "success", "retried_items": count}
     except Exception as e:
         logger.error(f"Error retrying pending items: {e}")
@@ -213,7 +250,7 @@ else:
         """Root endpoint when frontend is not built."""
         return {
             "service": "plex2jf",
-            "version": "1.0.0",
+            "version": __version__,
             "description": "Sync media requests and favorites between Plex, Jellyfin, and Seerr",
             "frontend": "Not built - API only mode",
             "endpoints": {

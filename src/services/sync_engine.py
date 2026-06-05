@@ -24,8 +24,8 @@ class SyncEngine:
         self,
         db: Session,
         plex_client: PlexClient,
-        jellyfin_client: JellyfinClient,
-        seerr_client: SeerrClient,
+        jellyfin_client: "JellyfinClient | None" = None,
+        seerr_client: "SeerrClient | None" = None,
         config=None,
     ):
         self.db = db
@@ -429,14 +429,51 @@ class SyncEngine:
             'request_id': str(request_id) if request_id is not None else None,
         }
 
+    def _build_seerr_to_jellyfin_user_map(self) -> Dict[str, str]:
+        """Match Seerr users to Jellyfin users by username via ExternalUser cache.
+
+        Returns a dict of {seerr_external_id: jellyfin_external_id} for users
+        who exist in both services but have no explicit UserMapping row.
+        """
+        from src.database.models import ExternalUser
+
+        seerr_users = {
+            u.username.lower().strip(): u.external_id
+            for u in self.db.query(ExternalUser)
+            .filter(ExternalUser.service_type == "seerr")
+            .all()
+        }
+        jellyfin_users = {
+            u.username.lower().strip(): u.external_id
+            for u in self.db.query(ExternalUser)
+            .filter(ExternalUser.service_type == "jellyfin")
+            .all()
+        }
+        # Intersection: username exists in both
+        matched: Dict[str, str] = {}
+        for name_lower, seerr_id in seerr_users.items():
+            jf_id = jellyfin_users.get(name_lower)
+            if jf_id:
+                matched[seerr_id] = jf_id
+                logger.debug(
+                    "Unmapped user match: Seerr %s (%s) <-> Jellyfin %s",
+                    name_lower, seerr_id, jf_id,
+                )
+        return matched
+
     def sync_seerr_completed_to_jellyfin(
         self,
         statuses: Optional[List[str]] = None,
+        include_unmapped: bool = False,
     ) -> Dict[str, int]:
         """Sync Seerr completed/approved requests to Jellyfin favorites.
 
         This is a polling-based sync path that queries Seerr by user and status,
         then attempts to favorite matching Jellyfin items.
+
+        When *include_unmapped* is True, Seerr users without an explicit
+        UserMapping row are still synced if a matching Jellyfin user can be
+        found by username (via the ExternalUser cache).
         """
         summary = {
             'users_processed': 0,
@@ -528,9 +565,95 @@ class SyncEngine:
                 else:
                     summary['failed'] += 1
 
+        # ── Unmapped Seerr users (username-based fallback) ──
+        if include_unmapped:
+            user_map = self._build_seerr_to_jellyfin_user_map()
+            if user_map:
+                logger.info(
+                    "Unmapped-user pass: %d Seerr→Jellyfin username matches found",
+                    len(user_map),
+                )
+            for seerr_id, jellyfin_id in user_map.items():
+                summary['users_processed'] += 1
+                try:
+                    requests = self.seerr.get_user_requests(
+                        user_id=int(seerr_id),
+                        statuses=target_statuses,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Failed loading Seerr requests for unmapped user %s: %s",
+                        seerr_id, e,
+                    )
+                    summary['failed'] += 1
+                    continue
+
+                for request in requests:
+                    normalized = self._extract_seerr_request_payload(request)
+                    if not normalized:
+                        summary['skipped'] += 1
+                        continue
+
+                    key = (int(seerr_id), normalized['tmdb_id'], normalized['media_type'])
+                    if key in seen_keys:
+                        summary['skipped'] += 1
+                        continue
+                    seen_keys.add(key)
+
+                    summary['requests_seen'] += 1
+
+                    # Use the matched Jellyfin user ID directly
+                    success = self._favorite_in_jellyfin_for_user(
+                        jellyfin_user_id=jellyfin_id,
+                        tmdb_id=normalized['tmdb_id'],
+                        media_type=normalized['media_type'],
+                        title=normalized['title'],
+                        source='seerr_request',
+                        source_id=normalized['request_id'],
+                    )
+                    if success:
+                        summary['synced'] += 1
+                    else:
+                        summary['failed'] += 1
+
         logger.info("Seerr completed->Jellyfin sync summary: %s", summary)
         return summary
-    
+
+    def _favorite_in_jellyfin_for_user(
+        self,
+        jellyfin_user_id: str,
+        tmdb_id: str,
+        media_type: str,
+        title: str,
+        source: str = 'seerr_request',
+        source_id: Optional[str] = None,
+    ) -> bool:
+        """Favorite a Jellyfin item for a user without requiring a UserMapping.
+
+        Used by the unmapped-Seerr fallback path.  Does not persist SyncState
+        (there is no user_mapping_id to key on), so retries rely on the
+        already-favorited pre-check on subsequent runs.
+        """
+        if self.jellyfin is None:
+            return False
+
+        jf_media_type = 'Movie' if media_type == 'movie' else 'Series'
+        item = self.jellyfin.search_by_tmdb_id(tmdb_id, jf_media_type)
+        if not item:
+            return False
+
+        try:
+            already = self.jellyfin.is_item_favorited(
+                jellyfin_user_id, tmdb_id, jf_media_type,
+            )
+        except Exception:
+            already = False
+
+        if already:
+            return True
+
+        return self.jellyfin.favorite_item(jellyfin_user_id, item['Id'])
+
     def sync_plex_watchlist_to_seerr(
         self,
         plex_username: str,

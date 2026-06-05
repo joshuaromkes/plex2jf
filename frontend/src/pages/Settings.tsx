@@ -119,6 +119,24 @@ export function Settings() {
                 <div className="w-11 h-6 bg-bg-primary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
               </label>
             </div>
+
+            <div className="flex items-start justify-between p-4 bg-bg-tertiary rounded-lg">
+              <div>
+                <h3 className="font-medium text-text-primary">Sync Unmapped Seerr Users</h3>
+                <p className="text-text-secondary text-sm mt-1">
+                  If a Seerr user has no Plex mapping, still sync their requests to Jellyfin by matching usernames between the two services. Useful for users who only use Seerr + Jellyfin.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings?.sync_unmapped_seerr ?? false}
+                  onChange={(e) => updateSetting('sync_unmapped_seerr', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-bg-primary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
+              </label>
+            </div>
           </div>
         </div>
 

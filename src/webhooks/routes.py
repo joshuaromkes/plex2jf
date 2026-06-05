@@ -11,31 +11,35 @@ from src.services.sync_engine import SyncEngine
 from src.api.plex import PlexClient
 from src.api.jellyfin import JellyfinClient
 from src.api.seerr import SeerrClient
-from src.config.settings import load_config
+from src.config.db_config import get_server_credentials, get_feature_flags
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
-def get_sync_engine(db: Session = Depends(get_db)) -> SyncEngine:
-    """Get sync engine instance."""
-    config = load_config()
-    
-    plex_client = PlexClient(
-        token=config.plex.token,
-        url=config.plex.url,
-    )
+def get_sync_engine(db: Session = Depends(get_db)) -> SyncEngine | None:
+    """Get sync engine instance using DB-stored server credentials."""
+    plex = get_server_credentials(db, "plex")
+    jellyfin = get_server_credentials(db, "jellyfin")
+    seerr = get_server_credentials(db, "seerr")
+
+    if not plex:
+        logger.warning("No active Plex server configured")
+        return None
+
+    plex_client = PlexClient(token=plex["token"], url=plex["url"])
     jellyfin_client = JellyfinClient(
-        url=config.jellyfin.url,
-        api_key=config.jellyfin.api_key,
-    )
+        url=jellyfin["url"], api_key=jellyfin["api_key"]
+    ) if jellyfin else None
     seerr_client = SeerrClient(
-        url=config.seerr.url,
-        api_key=config.seerr.api_key,
-    )
-    
-    return SyncEngine(db, plex_client, jellyfin_client, seerr_client, config)
+        url=seerr["url"], api_key=seerr["api_key"]
+    ) if seerr else None
+
+    flags = get_feature_flags(db)
+    class _Cfg:
+        sync = type("s", (), {"features": type("f", (), flags)})()
+    return SyncEngine(db, plex_client, jellyfin_client, seerr_client, _Cfg())
 
 
 @router.post("/seerr")
@@ -45,11 +49,13 @@ async def seerr_webhook(
     sync_engine: SyncEngine = Depends(get_sync_engine),
 ) -> Dict[str, Any]:
     """Receive Seerr webhook events.
-    
+
     Configure in Seerr:
     - URL: http://plex2jf:8000/webhooks/seerr
     - Events: REQUEST_PENDING, REQUEST_APPROVED
     """
+    if sync_engine is None:
+        return {"status": "error", "message": "Sync engine unavailable — no Plex server configured"}
     try:
         payload = await request.json()
         logger.debug(f"Received Seerr webhook: {payload}")

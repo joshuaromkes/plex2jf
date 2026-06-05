@@ -109,11 +109,21 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
     plex_poll = db.query(PollingState).filter(PollingState.service == 'plex_watchlist').first()
     seerr_poll = db.query(PollingState).filter(PollingState.service == 'seerr_requests').first()
 
+    # Helper: SQLite stores naive UTC datetimes; mark them with tzinfo so
+    # isoformat() renders a timezone suffix the frontend can parse correctly.
+    from datetime import timezone as tz
+    def _utc_iso(dt):
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=tz.utc)
+        return dt.isoformat()
+
     last_sync = None
     if plex_poll and plex_poll.last_success_at:
-        last_sync = plex_poll.last_success_at.isoformat()
+        last_sync = _utc_iso(plex_poll.last_success_at)
     elif seerr_poll and seerr_poll.last_success_at:
-        last_sync = seerr_poll.last_success_at.isoformat()
+        last_sync = _utc_iso(seerr_poll.last_success_at)
     
     # Seerr request specific stats
     seerr_query = db.query(SyncState).filter(SyncState.source == 'seerr_request')
@@ -229,10 +239,8 @@ async def trigger_manual_sync(db: Session = Depends(get_db)):
     from src.api.plex import PlexClient
     from src.api.jellyfin import JellyfinClient
     from src.api.seerr import SeerrClient
-    from src.config.settings import load_config
     from src.services.sync_engine import SyncEngine
     from src.services.poller import PollerService
-    from src.database.models import ServerConfig
     
     logger.info("Manual sync triggered via API")
     
@@ -264,10 +272,12 @@ async def trigger_manual_sync(db: Session = Depends(get_db)):
         jellyfin_client = JellyfinClient(url=jellyfin_server.url, api_key=jellyfin_server.api_key) if jellyfin_server else None
         seerr_client = SeerrClient(url=seerr_server.url, api_key=seerr_server.api_key) if seerr_server else None
 
-        # Load runtime config so feature flags are available to Poller/SyncEngine
-        config = load_config()
-        
-        sync_engine = SyncEngine(db, plex_client, jellyfin_client, seerr_client, config)
+        # Feature flags from DB settings
+        from src.config.db_config import get_feature_flags
+        flags = get_feature_flags(db)
+        class _Cfg:
+            sync = type("s", (), {"features": type("f", (), flags)})()
+        sync_engine = SyncEngine(db, plex_client, jellyfin_client, seerr_client, _Cfg())
         poller = PollerService(db, plex_client, sync_engine)
         
         # Run the sync

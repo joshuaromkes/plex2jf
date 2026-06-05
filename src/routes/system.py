@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from src.database.session import get_db
 from src.database.models import ServerConfig
+from src._version import __version__
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/system", tags=["system"])
@@ -53,12 +54,12 @@ async def health_check(db: Session = Depends(get_db)):
     # Check server connections
     servers = db.query(ServerConfig).all()
     server_statuses = {}
-    
+
     for server in servers:
         server_statuses[server.service_type] = {
             "configured": True,
             "connected": server.last_test_status == "success",
-            "last_test": server.last_test_at.isoformat() if server.last_test_at else None
+            "last_test": server.last_test_at.replace(tzinfo=timezone.utc).isoformat() if server.last_test_at else None
         }
     
     # Determine overall status
@@ -87,7 +88,7 @@ async def system_info():
     return {
         "success": True,
         "data": {
-            "version": "1.0.0",
+            "version": __version__,
             "python_version": sys.version,
             "platform": platform.platform(),
             "database_type": "SQLite"

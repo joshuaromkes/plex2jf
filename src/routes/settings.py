@@ -14,13 +14,20 @@ from src.database.models import AppSettings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
-# Default settings
+# Default settings — coarse flags are what the frontend UI shows;
+# granular feature_* flags are what the scheduler and sync engine read.
 DEFAULT_SETTINGS = {
     "sync_plex_watchlist": True,
     "sync_seerr_requests": True,
     "polling_interval": 300,
     "webhook_enabled": True,
     "log_level": "INFO",
+    # Granular feature flags (mirrored from coarse flags on first save)
+    "feature_seerr_to_jellyfin": True,
+    "feature_plex_watchlist_to_seerr": True,
+    "feature_plex_watchlist_to_jellyfin": True,
+    # Opt-in: sync Seerr users even without a Plex mapping (name-matched)
+    "feature_sync_unmapped_seerr": False,
 }
 
 
@@ -101,7 +108,18 @@ async def update_settings(
     for key, value in update.settings.items():
         set_setting(db, key, value)
         logger.info(f"Updated setting: {key}")
-    
+
+    # Mirror coarse feature flags to granular ones so the scheduler
+    # and sync engine pick up changes immediately.
+    for coarse, granular_keys in [
+        ("sync_plex_watchlist", ["feature_plex_watchlist_to_seerr", "feature_plex_watchlist_to_jellyfin"]),
+        ("sync_seerr_requests", ["feature_seerr_to_jellyfin"]),
+        ("sync_unmapped_seerr", ["feature_sync_unmapped_seerr"]),
+    ]:
+        if coarse in update.settings:
+            for gk in granular_keys:
+                set_setting(db, gk, bool(update.settings[coarse]))
+
     # Return updated settings
     settings = db.query(AppSettings).all()
     result = DEFAULT_SETTINGS.copy()

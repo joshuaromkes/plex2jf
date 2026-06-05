@@ -63,23 +63,23 @@ I am a big fan of plex, and likewise with jellyfin. When migrating my users over
 1. Open Seerr Settings → General
 2. Copy the API Key
 
-### 2. Create Configuration
+### 2. Start the Service
 
-Copy the example and fill in your credentials:
 ```bash
-cp config.example.yaml config.yaml
-# Edit config.yaml with your server URLs and tokens
+docker compose up -d
 ```
 
-### 3. Docker Compose
+The app starts immediately — no config file needed. Open `http://localhost:8000` to access the web UI.
+
+**Using the pre-built image:**
 
 ```yaml
+# docker-compose.yml
 plex2jf:
   image: ghcr.io/joshuaromkes/plex2jf:latest
   container_name: plex2jf
   volumes:
-    - /path/to/config.yaml:/app/config/config.yaml
-    - /path/to/data:/data
+    - ./data:/data
   environment:
     - TZ=America/New_York
     - PLEX2JF_LOG_LEVEL=INFO
@@ -90,13 +90,25 @@ plex2jf:
 docker compose up -d plex2jf
 ```
 
-Open `http://localhost:8000` and configure user mappings in the web UI.
+### 3. Configure Servers (via Web UI)
+
+1. Go to **Servers** in the sidebar
+2. Click **Add Server** for each service type (Plex, Jellyfin, Seerr)
+3. Enter the URL and API token/key
+4. Click **Test** to verify the connection
+5. Click **Save**
+
+All configuration is stored in the SQLite database — there's no config file to manage.
 
 ### 4. User Mapping
 
-1. Go to User Mapping in the web UI
-2. Refresh Users to pull users from all services
-3. Add mappings linking your Plex, Jellyfin, and Seerr users
+1. Go to **User Mapping** → **Refresh Users** to pull users from your servers
+2. Click **Add Mapping**
+3. Select the Plex user, Jellyfin user, and Seerr user — hit **Save**
+
+### 5. Settings (Optional)
+
+Tweak sync behavior under **Settings**: polling interval, feature toggles, webhooks, and log level. Changes take effect automatically — no restart needed.
 
 ### Environment Variables
 
@@ -107,7 +119,15 @@ Open `http://localhost:8000` and configure user mappings in the web UI.
 | `PLEX2JF_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
 | `PLEX2JF_POLLING_INTERVAL` | `300` | Polling interval in seconds |
 
-### Config File Options
+### Legacy Config File (Optional)
+
+**You don't need this to get started.** All server credentials, user mappings, and settings are managed through the web UI and stored in the database.
+
+`config.yaml` is only needed if:
+- You have an existing deployment and want to import user mappings on startup
+- You prefer file-based configuration for infrastructure-as-code
+
+Copy `config.example.yaml` to `config/config.yaml` and fill in your values. The app reads it at startup for legacy user-mapping import only.
 
 ```yaml
 # Server connections

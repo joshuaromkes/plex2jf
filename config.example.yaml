@@ -1,5 +1,10 @@
-# Plex2JF Configuration Example
-# Copy this file to config.yaml and fill in your values
+# Plex2JF Configuration Example (LEGACY — optional)
+#
+# You do NOT need this file to run plex2jf. All configuration is managed
+# through the web UI and stored in the database. This file is only used
+# for one-time legacy user-mapping import on startup.
+#
+# Copy this file to config/config.yaml if you want file-based user mappings.
 
 # Server Configurations
 plex:

@@ -20,6 +20,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
+def _utc_iso(dt):
+    """Serialize naive UTC datetime with tzinfo so frontend parses correctly."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 def external_user_to_dict(user: ExternalUser) -> dict:
     """Convert ExternalUser model to dictionary for JSON serialization."""
     return {
@@ -28,7 +37,7 @@ def external_user_to_dict(user: ExternalUser) -> dict:
         "external_id": user.external_id,
         "username": user.username,
         "email": user.email,
-        "last_synced_at": user.last_synced_at.isoformat() if user.last_synced_at else None,
+        "last_synced_at": _utc_iso(user.last_synced_at),
     }
 
 
@@ -42,8 +51,8 @@ def user_mapping_to_dict(mapping: UserMapping) -> dict:
         "seerr_user_id": mapping.seerr_user_id,
         "is_active": mapping.is_active,
         "notes": mapping.notes,
-        "created_at": mapping.created_at.isoformat() if mapping.created_at else None,
-        "updated_at": mapping.updated_at.isoformat() if mapping.updated_at else None,
+        "created_at": _utc_iso(mapping.created_at),
+        "updated_at": _utc_iso(mapping.updated_at),
     }
 
 

@@ -19,6 +19,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/servers", tags=["servers"])
 
 
+def _utc_iso(dt):
+    """Serialize naive UTC datetime with tzinfo so frontend parses correctly."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 def server_to_dict(server: ServerConfig) -> dict:
     """Convert ServerConfig model to dictionary for JSON serialization."""
     return {
@@ -29,10 +38,10 @@ def server_to_dict(server: ServerConfig) -> dict:
         "api_key": server.api_key,
         "token": server.token,
         "is_active": server.is_active,
-        "last_test_at": server.last_test_at.isoformat() if server.last_test_at else None,
+        "last_test_at": _utc_iso(server.last_test_at),
         "last_test_status": server.last_test_status,
-        "created_at": server.created_at.isoformat() if server.created_at else None,
-        "updated_at": server.updated_at.isoformat() if server.updated_at else None,
+        "created_at": _utc_iso(server.created_at),
+        "updated_at": _utc_iso(server.updated_at),
     }
 
 
