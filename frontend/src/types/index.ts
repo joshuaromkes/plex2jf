@@ -96,18 +96,17 @@ export interface DashboardStats {
   items_pending: number;
   items_failed: number;
   last_sync?: string | null;
-  seerr_request: {
-    total: number;
-    synced: number;
-    pending: number;
-    failed: number;
-  };
-  unmapped: {
-    total: number;
-    synced: number;
-    pending: number;
-    failed: number;
-  };
+  seerr_request: SyncStats;
+  unmapped: SyncStats;
+  watchlist_to_seerr: SyncStats;
+  favorites: SyncStats;
+}
+
+export interface SyncStats {
+  total: number;
+  synced: number;
+  pending: number;
+  failed: number;
 }
 
 export interface ActivityItem {

@@ -26,8 +26,7 @@ DEFAULT_SETTINGS = {
     "feature_seerr_to_jellyfin": True,
     "feature_plex_watchlist_to_seerr": True,
     "feature_plex_watchlist_to_jellyfin": True,
-    # Opt-in: sync Seerr users even without a Plex mapping (name-matched)
-    "feature_sync_unmapped_seerr": False,
+    "feature_sync_unmapped_seerr": True,  # always on with favorites sync
 }
 
 
@@ -113,8 +112,7 @@ async def update_settings(
     # and sync engine pick up changes immediately.
     for coarse, granular_keys in [
         ("sync_plex_watchlist", ["feature_plex_watchlist_to_seerr", "feature_plex_watchlist_to_jellyfin"]),
-        ("sync_seerr_requests", ["feature_seerr_to_jellyfin"]),
-        ("sync_unmapped_seerr", ["feature_sync_unmapped_seerr"]),
+        ("sync_seerr_requests", ["feature_seerr_to_jellyfin", "feature_sync_unmapped_seerr"]),
     ]:
         if coarse in update.settings:
             for gk in granular_keys:

@@ -60,10 +60,10 @@ def run_polling_job():
             if flags.get("plex_watchlist_to_seerr") or flags.get("plex_watchlist_to_jellyfin"):
                 poller.poll_plex_watchlists()
 
-            # Poll Seerr requests -> Jellyfin favorites
+            # Poll Seerr requests -> Jellyfin favorites (unmapped always included)
             if flags.get("seerr_to_jellyfin"):
                 poller.poll_seerr_requests_to_jellyfin(
-                    include_unmapped=bool(flags.get("sync_unmapped_seerr")),
+                    include_unmapped=True,
                 )
 
             # Retry pending items

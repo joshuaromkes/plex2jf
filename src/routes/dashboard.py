@@ -150,6 +150,35 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
         SyncState.synced_to_jellyfin == False,
         SyncState.retry_count >= 3,
     ).count()
+
+    # Watchlist → Seerr stats (Plex watchlist items that became Seerr requests)
+    w2s_query = db.query(SyncState).filter(
+        SyncState.source == 'plex_watchlist',
+        SyncState.synced_to_seerr == True,
+    )
+    w2s_total = w2s_query.count()
+    w2s_pending = db.query(SyncState).filter(
+        SyncState.source == 'plex_watchlist',
+        SyncState.synced_to_seerr == False,
+        SyncState.retry_count < 3,
+    ).count()
+    w2s_failed = db.query(SyncState).filter(
+        SyncState.source == 'plex_watchlist',
+        SyncState.synced_to_seerr == False,
+        SyncState.retry_count >= 3,
+    ).count()
+
+    # Combined favorites (all Seerr→Jellyfin, mapped + unmapped)
+    fav_query = db.query(SyncState).filter(SyncState.synced_to_jellyfin == True)
+    fav_total = fav_query.count()
+    fav_pending = db.query(SyncState).filter(
+        SyncState.synced_to_jellyfin == False,
+        SyncState.retry_count < 3,
+    ).count()
+    fav_failed = db.query(SyncState).filter(
+        SyncState.synced_to_jellyfin == False,
+        SyncState.retry_count >= 3,
+    ).count()
     
     return {
         "success": True,
@@ -173,6 +202,18 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
                 "synced": unmapped_synced,
                 "pending": unmapped_pending,
                 "failed": unmapped_failed,
+            },
+            "watchlist_to_seerr": {
+                "total": w2s_total,
+                "synced": w2s_total,
+                "pending": w2s_pending,
+                "failed": w2s_failed,
+            },
+            "favorites": {
+                "total": fav_total,
+                "synced": fav_total,
+                "pending": fav_pending,
+                "failed": fav_failed,
             }
         }
     }
@@ -305,7 +346,7 @@ async def trigger_manual_sync(db: Session = Depends(get_db)):
         seerr_count = 0
         if flags.get("seerr_to_jellyfin") and seerr_client:
             seerr_count = poller.poll_seerr_requests_to_jellyfin(
-                include_unmapped=bool(flags.get("sync_unmapped_seerr")),
+                include_unmapped=True,
             )
 
         # Retry pending items

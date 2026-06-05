@@ -86,9 +86,9 @@ export function Settings() {
           <div className="space-y-4">
             <div className="flex items-start justify-between p-4 bg-bg-tertiary rounded-lg">
               <div>
-                <h3 className="font-medium text-text-primary">Plex Watchlist → Seerr + Jellyfin</h3>
+                <h3 className="font-medium text-text-primary">Sync Watchlist</h3>
                 <p className="text-text-secondary text-sm mt-1">
-                  Automatically create Seerr requests and favorite items in Jellyfin when users add to their Plex watchlist
+                  When users add to their Plex watchlist, automatically create matching requests in Seerr and favorite the items in Jellyfin
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -104,9 +104,9 @@ export function Settings() {
 
             <div className="flex items-start justify-between p-4 bg-bg-tertiary rounded-lg">
               <div>
-                <h3 className="font-medium text-text-primary">Seerr Requests → Jellyfin Favorites</h3>
+                <h3 className="font-medium text-text-primary">Sync Favorites</h3>
                 <p className="text-text-secondary text-sm mt-1">
-                  Automatically favorite items in Jellyfin when users make requests in Seerr
+                  When users request media in Seerr, automatically favorite those items in Jellyfin. Works for both mapped users and users matched by username between services.
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -114,24 +114,6 @@ export function Settings() {
                   type="checkbox"
                   checked={settings?.sync_seerr_requests ?? true}
                   onChange={(e) => updateSetting('sync_seerr_requests', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-bg-primary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>
-              </label>
-            </div>
-
-            <div className="flex items-start justify-between p-4 bg-bg-tertiary rounded-lg">
-              <div>
-                <h3 className="font-medium text-text-primary">Sync Unmapped Seerr Users</h3>
-                <p className="text-text-secondary text-sm mt-1">
-                  If a Seerr user has no Plex mapping, still sync their requests to Jellyfin by matching usernames between the two services. Useful for users who only use Seerr + Jellyfin.
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings?.sync_unmapped_seerr ?? false}
-                  onChange={(e) => updateSetting('sync_unmapped_seerr', e.target.checked)}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-bg-primary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-primary"></div>

@@ -296,8 +296,8 @@ export function UserMappingPage() {
                   <th className="py-3 px-4 text-left text-text-secondary font-medium">Plex</th>
                   <th className="py-3 px-4 text-left text-text-secondary font-medium">Jellyfin</th>
                   <th className="py-3 px-4 text-left text-text-secondary font-medium">Seerr</th>
-                  <th className="py-3 px-4 text-left text-text-secondary font-medium">Watchlist Stats</th>
-                  <th className="py-3 px-4 text-left text-text-secondary font-medium">Seerr Stats</th>
+                  <th className="py-3 px-4 text-left text-text-secondary font-medium">Plex Watchlist</th>
+                  <th className="py-3 px-4 text-left text-text-secondary font-medium">Favorites</th>
                   <th className="py-3 px-4 text-left text-text-secondary font-medium">Actions</th>
                 </tr>
               </thead>

@@ -4,10 +4,11 @@ import {
   Users,
   CheckCircle,
   Clock,
-  AlertCircle,
+  AlertTriangle,
   RefreshCw,
   ListChecks,
-  AlertTriangle
+  Heart,
+  AlertCircle,
 } from 'lucide-react';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { dashboardApi, systemApi } from '../services/api';
@@ -119,7 +120,7 @@ export function Dashboard() {
         </div>
       }
     >
-      {/* Stats Grid */}
+      {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           icon={Server}
@@ -133,90 +134,96 @@ export function Dashboard() {
           label="Users Mapped"
           value={stats?.users_mapped || 0}
           color="blue"
-          subtext={`${stats?.users_total || 0} total external users`}
+          subtext={`${stats?.users_total || 0} total across all services`}
         />
         <StatCard
-          icon={CheckCircle}
-          label="Items Synced"
-          value={stats?.items_synced || 0}
+          icon={Heart}
+          label="Favorites Synced"
+          value={stats?.favorites?.synced || 0}
           color="green"
+          subtext="Items favorited in Jellyfin"
         />
         <StatCard
           icon={Clock}
-          label="Pending Items"
-          value={stats?.items_pending || 0}
-          color={stats?.items_pending ? 'yellow' : 'green'}
-          subtext={stats?.items_failed ? `${stats.items_failed} failed` : undefined}
+          label="Awaiting Library"
+          value={stats?.favorites?.pending || 0}
+          color={stats?.favorites?.pending ? 'yellow' : 'green'}
+          subtext={stats?.favorites?.failed ? `${stats.favorites.failed} failed` : 'Not yet in Jellyfin'}
         />
       </div>
 
-      {/* Seerr Request Sync Stats */}
+      {/* Watchlist → Seerr */}
       <div className="card mb-8">
-        <h2 className="text-lg font-semibold text-text-primary mb-4">Seerr Request Sync</h2>
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Watchlist → Seerr</h2>
+        <p className="text-sm text-text-muted mb-4">
+          Plex watchlist items that became Seerr requests. When someone adds to their Plex watchlist, plex2jf creates a matching request in Seerr.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             icon={ListChecks}
-            label="Total Requests"
-            value={stats?.seerr_request?.total || 0}
+            label="Total Created"
+            value={stats?.watchlist_to_seerr?.total || 0}
             color="blue"
-            subtext="Seerr requests tracked"
+            subtext="Watchlist → Seerr requests"
           />
           <StatCard
             icon={CheckCircle}
-            label="Synced to Jellyfin"
-            value={stats?.seerr_request?.synced || 0}
+            label="Requested"
+            value={stats?.watchlist_to_seerr?.synced || 0}
             color="green"
-            subtext="Favorited in Jellyfin"
+            subtext="Successfully created in Seerr"
           />
           <StatCard
             icon={Clock}
             label="Pending"
-            value={stats?.seerr_request?.pending || 0}
-            color={stats?.seerr_request?.pending ? 'yellow' : 'green'}
-            subtext="Waiting for library item"
+            value={stats?.watchlist_to_seerr?.pending || 0}
+            color={stats?.watchlist_to_seerr?.pending ? 'yellow' : 'green'}
+            subtext="Waiting to be requested"
           />
           <StatCard
             icon={AlertTriangle}
             label="Failed"
-            value={stats?.seerr_request?.failed || 0}
-            color={stats?.seerr_request?.failed ? 'red' : 'green'}
-            subtext="Exceeded retry limit"
+            value={stats?.watchlist_to_seerr?.failed || 0}
+            color={stats?.watchlist_to_seerr?.failed ? 'red' : 'green'}
+            subtext="Could not create request"
           />
         </div>
       </div>
 
-      {/* Unmapped User Sync Stats */}
+      {/* Favorites (Seerr → Jellyfin) */}
       <div className="card mb-8">
-        <h2 className="text-lg font-semibold text-text-primary mb-4">Unmapped User Sync</h2>
-        <p className="text-sm text-text-muted mb-4">Seerr users without an explicit mapping — favorited via username matching.</p>
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Favorites</h2>
+        <p className="text-sm text-text-muted mb-4">
+          Seerr requests that have been favorited in Jellyfin. Covers both mapped users (with a Plex profile) and unmapped users (matched by username).
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             icon={ListChecks}
-            label="Total"
-            value={stats?.unmapped?.total || 0}
+            label="Total Tracked"
+            value={stats?.favorites?.total || 0}
             color="blue"
-            subtext="Items processed"
+            subtext="All Seerr→Jellyfin items"
           />
           <StatCard
-            icon={CheckCircle}
-            label="Synced"
-            value={stats?.unmapped?.synced || 0}
+            icon={Heart}
+            label="Favorited"
+            value={stats?.favorites?.synced || 0}
             color="green"
-            subtext="Favorited in Jellyfin"
+            subtext="Successfully favorited"
           />
           <StatCard
             icon={Clock}
-            label="Pending"
-            value={stats?.unmapped?.pending || 0}
-            color={stats?.unmapped?.pending ? 'yellow' : 'green'}
-            subtext="Item not in library yet"
+            label="Awaiting Library"
+            value={stats?.favorites?.pending || 0}
+            color={stats?.favorites?.pending ? 'yellow' : 'green'}
+            subtext="Not yet in Jellyfin library"
           />
           <StatCard
             icon={AlertTriangle}
             label="Failed"
-            value={stats?.unmapped?.failed || 0}
-            color={stats?.unmapped?.failed ? 'red' : 'green'}
-            subtext="Exceeded retry limit"
+            value={stats?.favorites?.failed || 0}
+            color={stats?.favorites?.failed ? 'red' : 'green'}
+            subtext="Exceeded retry attempts"
           />
         </div>
       </div>
@@ -247,5 +254,3 @@ export function Dashboard() {
     </PageWrapper>
   );
 }
-
-export default Dashboard;
