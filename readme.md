@@ -21,9 +21,11 @@ I am a big fan of plex, and likewise with jellyfin. When migrating my users over
 ## Features
 
 - **Plex Watchlist → Seerr**: When a user adds to Plex watchlist, automatically create a Seerr request.
+- **Plex Watchlist → Jellyfin**: Optionally favorite Plex watchlist items directly in Jellyfin.
 - **Seerr → Jellyfin**: When a user requests media in Seerr, plex2jf will favorite it in Jellyfin.
+- **Unmapped Seerr Sync**: For Seerr users without an explicit UserMapping, username-based fallback matching can sync their requests to matching Jellyfin users (opt-in via Settings).
 - **Loose Mapping Fallback**: If strict IDs are missing/unusable, Plex items can be resolved via title/year/type search with confidence guardrails.
-- **Polling Interval**: Both watchlist and favorites are automatically kept in sync with a set polling interval (default 300s)
+- **Polling Interval**: Both watchlist and favorites are automatically kept in sync with a configurable polling interval (default 300s). All settings are managed through the web UI and take effect without restart.
 
 ## Architecture
 
@@ -114,57 +116,16 @@ Tweak sync behavior under **Settings**: polling interval, feature toggles, webho
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PLEX2JF_CONFIG_PATH` | `/app/config/config.yaml` | Path to config file |
 | `PLEX2JF_DB_PATH` | `/data/plex2jf.db` | Path to SQLite database |
 | `PLEX2JF_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
-| `PLEX2JF_POLLING_INTERVAL` | `300` | Polling interval in seconds |
 
 ### Legacy Config File (Optional)
 
-**You don't need this to get started.** All server credentials, user mappings, and settings are managed through the web UI and stored in the database.
+You don't need a config file to get started. All server credentials, user mappings, and settings are managed through the web UI and stored in the SQLite database.
 
-`config.yaml` is only needed if:
-- You have an existing deployment and want to import user mappings on startup
-- You prefer file-based configuration for infrastructure-as-code
+`config.yaml` is only used for **one-time user-mapping import on first startup**. If you have an existing `config.yaml` with `user_mappings`, mount it and the app will import them on boot. After import, the file is no longer needed.
 
-Copy `config.example.yaml` to `config/config.yaml` and fill in your values. The app reads it at startup for legacy user-mapping import only.
-
-```yaml
-# Server connections
-plex:
-  url: "https://plex.tv"
-  token: "YOUR_TOKEN"
-
-jellyfin:
-  url: "http://jellyfin:8096"
-  api_key: "YOUR_KEY"
-
-seerr:
-  url: "http://seerr:5055"
-  api_key: "YOUR_KEY"
-
-# Map users between services
-user_mappings:
-  - plex_username: "john"
-    plex_user_id: "123"      # Optional
-    jellyfin_user_id: "abc"
-    seerr_user_id: "1"
-
-# Sync settings
-sync:
-  polling_interval: 300      # 5 minutes
-  enable_webhooks: true
-  webhook_port: 8000
-  features:
-    seerr_to_jellyfin: true
-    plex_watchlist_to_seerr: true
-    plex_watchlist_to_jellyfin: true
-
-# Logging
-logging:
-  level: "INFO"
-  file: "/data/plex2jf.log"
-```
+Copy `config.example.yaml` to `config/config.yaml`, fill in your user mappings, and start the container.
 
 ## API Endpoints
 
@@ -212,6 +173,8 @@ The UI follows an "Arr-style" dark theme and is fully responsive.
 4. If found, item is favorited for the user
 5. If not found, marked as pending (retried later)
 
+**Unmapped Seerr users**: When the "Sync unmapped Seerr users" setting is enabled, plex2jf does a second pass over Seerr users who have no explicit UserMapping. It matches them to Jellyfin users by case-insensitive username and favorites their requests directly — no manual mapping required.
+
 ### Plex Watchlist → Seerr/Jellyfin
 
 1. plex2jf polls Plex watchlists every 5 minutes
@@ -241,26 +204,27 @@ pytest
 ```
 plex2jf/
 ├── src/
-│   ├── api/           # API clients (Plex, Jellyfin, Seerr)
-│   ├── config/        # Configuration management
-│   ├── database/      # Database models and session
-│   ├── routes/        # REST API routes
-│   ├── services/      # Sync engine, poller, user mapper
-│   ├── webhooks/      # Webhook handlers and routes
-│   ├── utils/         # Utilities
-│   ├── main.py        # FastAPI app
-│   └── scheduler.py   # Background polling scheduler
-├── frontend/          # React + TypeScript + Vite web UI
+│   ├── _version.py      # Single source of truth for version
+│   ├── api/              # API clients (Plex, Jellyfin, Seerr)
+│   ├── config/           # Models, settings, DB-backed config
+│   ├── database/         # SQLAlchemy models and session
+│   ├── routes/           # REST API routes (dashboard, servers, users, settings, system)
+│   ├── services/         # Sync engine, poller, user mapper
+│   ├── webhooks/         # Webhook handlers and routes
+│   ├── utils/            # Logging, response helpers
+│   ├── main.py           # FastAPI app + lifespan
+│   └── scheduler.py      # Background polling scheduler
+├── frontend/             # React + TypeScript + Vite web UI
 │   └── src/
 │       ├── components/
 │       ├── pages/
 │       ├── services/
 │       └── types/
-├── tests/             # Test suite
+├── tests/                # Test suite
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .dockerignore
-├── config.example.yaml
+├── config.example.yaml   # Legacy user-mapping import only
 └── requirements.txt
 ```
 
